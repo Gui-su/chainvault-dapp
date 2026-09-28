@@ -43,16 +43,31 @@ npm i -g netlify-cli && netlify deploy --prod --dir .
 # Cloudflare Pages：网页端 Create project → Upload assets，选择整个 copyright-dapp 目录
 ```
 
-### 方案二：GitHub Pages
+### 方案二：GitHub Pages（免费 HTTPS，推荐长期）
+
+1. 在 github.com 新建仓库，**可见性选 Public**（免费账号的私有仓库不支持 Pages）
+2. 推送代码：
 
 ```bash
 cd copyright-dapp
 git init && git add -A && git commit -m "deploy"
-git branch -M gh-pages
-git remote add origin <你的仓库地址>
-git push -u origin gh-pages
-# 仓库 Settings → Pages → Source 选 gh-pages 分支，几分钟后得到 https://<user>.github.io/<repo>/
+git branch -M main
+git remote add origin https://github.com/<用户名>/<仓库名>.git
+git push -u origin main
 ```
+
+> Windows 上 `git push` 会弹出 GitHub 登录；若开了两步验证，密码处要填
+> **Personal Access Token**（GitHub → Settings → Developer settings → Tokens(classic)，勾选 `repo`）。
+
+3. 仓库 **Settings → Pages → Build and deployment**：
+   Source = `Deploy from a branch`，Branch = `main`，Folder = `/ (root)` → Save
+4. 等 1~3 分钟，访问 `https://<用户名>.github.io/<仓库名>/`
+
+说明：
+- 仓库根已放 `.nojekyll`，避免 Jekyll 处理导致资源 404
+- 站点全站使用相对路径，部署在子路径（`/<仓库名>/`）下无需改配置
+- 若仓库名取 `<用户名>.github.io`，则直接用 `https://<用户名>.github.io/` 访问
+- `测试账号.txt` 已写入 `.gitignore`，不会被提交到公开仓库
 
 ### 方案三：自有服务器（Nginx + Let's Encrypt）
 
