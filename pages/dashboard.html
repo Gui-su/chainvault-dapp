@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的版权 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<section class="container" style="padding:36px 24px 60px" id="root"></section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('dash');
+const sess = App.requirePageLogin();
+if (sess) {
+  Web3.state.address = sess.address;
+  render(sess);
+}
+
+function myWorks(addr){
+  return Store.works().filter(w => (w.owner||'').toLowerCase()===addr.toLowerCase() || (w.creator||'').toLowerCase()===addr.toLowerCase());
+}
+function myLicenses(addr){
+  return Store.licenses().filter(l => (l.licensee||'').toLowerCase()===addr.toLowerCase());
+}
+function myOrders(addr){
+  return Store.orders().filter(o => (o.buyer||'').toLowerCase()===addr.toLowerCase() || (o.seller||'').toLowerCase()===addr.toLowerCase());
+}
+
+function render(sess){
+  const works = myWorks(sess.address);
+  const lics = myLicenses(sess.address);
+  const orders = myOrders(sess.address);
+  const income = orders.filter(o=>(o.seller||'').toLowerCase()===sess.address.toLowerCase())
+    .reduce((a,o)=>a+Number(o.amount||0)*(1-(Store.settings().platformFee||2.5)/100),0);
+  const spend = orders.filter(o=>(o.buyer||'').toLowerCase()===sess.address.toLowerCase())
+    .reduce((a,o)=>a+Number(o.amount||0)+Number(o.fee||0),0);
+  const user = Store.getUser(sess.address) || {name:sess.name, address:sess.address, createdAt:new Date().toISOString().slice(0,10)};
+
+  document.getElementById('root').innerHTML = `
+  <div class="crumb"><a href="../index.html">首页</a> / 我的版权</div>
+
+  <div class="card glow mb-24 up-in">
+    <div class="row between wrap">
+      <div class="row" style="gap:16px">
+        <div class="avatar lg" style="background:${App.avatarColor(sess.name)}">${App.esc(App.initial(sess.name))}</div>
+        <div>
+          <h1 style="margin:0 0 4px;font-size:26px">${App.esc(sess.name)}</h1>
+          <div class="row wrap" style="gap:8px">
+            <span class="badge ${sess.method==='wallet'?'info':'cyan'}">${sess.method==='wallet'?'钱包签名登录':'邮箱账号登录'}</span>
+            ${sess.role==='admin'?'<span class="badge err">平台管理员</span>':'<span class="badge ok">已实名创作者</span>'}
+            <span class="badge">${sess.walletMode==='wallet'?'链上钱包':'演示钱包'}</span>
+          </div>
+          <div class="mono mute mt-8" style="font-size:12px">${App.esc(sess.address)}
+            <a style="cursor:pointer;color:#1d4ed8" onclick="App.copy('${sess.address}')"> ⧉</a></div>
+        </div>
+      </div>
+      <div class="row wrap" style="gap:10px">
+        <a class="btn" href="credits.html">🪙 积分 <span class="badge cyan" style="padding:1px 6px;font-size:11px">${App.fmt.num(Store.creditsOf(sess.address))}</span></a>
+        <a class="btn" href="messages.html">💬 消息中心 <span class="badge err" id="dashMsgBadge" style="display:none;padding:1px 6px;font-size:11px">0</span></a>
+        <a class="btn btn-primary" href="create.html">🛡️ 确权新作品</a>
+        ${sess.role==='admin'?'<a class="btn btn-danger" href="admin.html">进入管理后台</a>':'<a class="btn" href="works.html">浏览市场</a>'}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g-4 mb-24">
+    <div class="stat"><div class="ico">🛡️</div><div class="k">我的作品</div><div class="v">${works.length}</div><div class="d up">${works.filter(w=>w.status==='approved').length} 件在售</div></div>
+    <div class="stat"><div class="ico">📥</div><div class="k">版权仓库（购入）</div><div class="v">${works.filter(w=>(w.creator||'').toLowerCase()!==sess.address.toLowerCase()).length}</div><div class="d">买断后自动入库并上架</div></div>
+    <div class="stat"><div class="ico">⭐</div><div class="k">我的收藏</div><div class="v">${App.favs().length}</div><div class="d">来自版权市场</div></div>
+    <div class="stat"><div class="ico">💱</div><div class="k">交易笔数</div><div class="v">${orders.length}</div><div class="d">买入支出 ${App.fmt.eth(spend)} ETH</div></div>
+  </div>
+
+  <div class="tabs mb-24">
+    <button class="on" data-t="works">🛡️ 我的作品 (${works.length})</button>
+    <button data-t="fav">⭐ 我的收藏 (<span id="favTabCount">${App.favs().length}</span>)</button>
+    <button data-goto="messages.html">💬 消息中心 (<span id="tabMsgCount">${Store.unreadFor(sess.address).count}</span>)</button>
+    <button data-t="lic">📜 我的授权 (${lics.length})</button>
+    <button data-t="tx">💱 交易记录 (${orders.length})</button>
+    <button data-t="wallet">👛 我的钱包</button>
+    <button data-t="setting">⚙️ 账号设置</button>
+  </div>
+  <div id="body"></div>`;
+
+  const addr = sess.address.toLowerCase();
+
+  /* 作品卡片：原创作品与购入作品共用 */
+  function workItem(w){
+    const t = Store.TYPE_MAP[w.type];
+    const iCreated = (w.creator||'').toLowerCase() === addr;
+    const iOwner   = (w.owner||'').toLowerCase() === addr;
+    const onSale = w.status === 'approved';
+    const st = Store.STATUS_MAP[w.status] || Store.STATUS_MAP.rejected;
+    const soldOut = iCreated && !iOwner;   // 我创作但已卖出
+    return `<div class="card card-hover">
+      <div class="cover ${t.color}" style="height:130px;border-radius:14px">
+        <span class="top-tag">${t.icon} ${t.label}</span>${App.coverInner(w, '40px')}
+      </div>
+      <h4 style="margin:14px 0 4px;font-size:15.5px">${App.esc(w.title)}</h4>
+      <div class="row wrap" style="gap:6px">
+        <span class="badge ${onSale?'ok':st.cls}">${onSale?'在售':st.label}</span>
+        <span class="badge info">${Store.LICENSE_MAP[w.licenseType].label}</span>
+        ${w.resale ? '<span class="badge cyan">二次流转</span>' : ''}
+        ${soldOut ? '<span class="badge warn">已售出</span>' : ''}
+      </div>
+      ${iCreated ? '' : `<div class="kv"><span class="k">购入自</span><span class="v">${App.esc(w.prevOwnerName || w.creatorName || '—')}</span></div>`}
+      <div class="kv"><span class="k">售价</span><span class="v"><b>${App.fmt.eth(w.price)}</b> ETH</span></div>
+      <div class="kv"><span class="k">浏览 / 收藏</span><span class="v">${App.fmt.num(w.views)} / ${App.fmt.num(w.likes)}</span></div>
+      <div class="kv"><span class="k">存证时间</span><span class="v">${App.fmt.date(w.createdAt)}</span></div>
+      <div class="row mt-16" style="gap:8px">
+        <a class="btn btn-sm btn-outline btn-block" href="detail.html?id=${w.id}">详情</a>
+        ${onSale
+          ? `<button class="btn btn-sm btn-block" data-price="${w.id}">调价</button>
+             <button class="btn btn-sm btn-danger btn-block" data-del="${w.id}">下架</button>`
+          : (w.status === 'pending'
+              ? ``
+              : `<button class="btn btn-sm btn-primary btn-block" data-edit="${w.id}">${iCreated ? '编辑并上架' : '修改后上架'}</button>`)}
+      </div>
+    </div>`;
+  }
+
+  const created = works.filter(w=>(w.creator||'').toLowerCase() === addr);
+  const bought  = works.filter(w=>(w.creator||'').toLowerCase() !== addr);
+
+  const bodies = {
+    works: () => works.length ? `
+      <div class="row between wrap mb-16">
+        <h3 style="margin:0;font-size:17px">我创作的作品 (${created.length})</h3>
+        <a class="btn btn-sm btn-primary" href="create.html">🛡️ 确权新作品</a>
+      </div>
+      ${created.length
+        ? `<div class="grid g-auto">${created.map(workItem).join('')}</div>`
+        : `<div class="empty card" style="padding:28px 20px"><div class="ico">🛡️</div><p>还没有原创作品</p><a class="btn btn-primary" href="create.html">立即确权第一件作品</a></div>`}
+      <div class="row between wrap mt-32 mb-16">
+        <h3 style="margin:0;font-size:17px">我的版权仓库 · 购入的版权 (${bought.length})</h3>
+        <span class="hint">买断成交后作品自动入库并重新上架，可自行调价或下架</span>
+      </div>
+      ${bought.length
+        ? `<div class="grid g-auto">${bought.map(workItem).join('')}</div>`
+        : `<div class="empty card" style="padding:28px 20px"><div class="ico">📥</div><p>仓库为空，去市场买断一件作品后会自动出现在这里</p><a class="btn btn-outline" href="works.html">浏览版权市场</a></div>`}`
+      : `<div class="empty card"><div class="ico">🛡️</div><p>你还没有任何已确权作品</p><a class="btn btn-primary" href="create.html">立即确权第一件作品</a></div>`,
+
+    fav: () => {
+      const list = App.favs().map(id=>Store.getWork(id)).filter(Boolean);
+      if(!list.length) return `<div class="empty card"><div class="ico">⭐</div><p>还没有收藏任何作品</p><a class="btn btn-primary" href="works.html">去市场逛逛</a></div>`;
+      return `
+      <div class="row between wrap mb-16">
+        <h3 style="margin:0;font-size:17px">我的收藏 (${list.length})</h3>
+        <span class="hint">点击卡片查看详情，可随时取消收藏</span>
+      </div>
+      <div class="grid g-auto">${list.map(w=>{
+        const t = Store.TYPE_MAP[w.type];
+        return `<div class="card card-hover">
+          <a href="detail.html?id=${w.id}">
+            <div class="cover ${t.color}" style="height:130px;border-radius:14px">
+              <span class="top-tag">${t.icon} ${t.label}</span>${App.coverInner(w, '40px')}
+            </div>
+            <h4 style="margin:14px 0 4px;font-size:15.5px">${App.esc(w.title)}</h4>
+          </a>
+          <div class="row wrap" style="gap:6px">
+            <span class="badge ${w.status==='approved'?'ok':w.status==='pending'?'warn':'err'}">${w.status==='approved'?'在售':w.status==='pending'?'审核中':'已下架'}</span>
+            ${w.resale ? '<span class="badge cyan">二次流转</span>' : ''}
+          </div>
+          <div class="kv"><span class="k">作者</span><span class="v">${App.esc(w.creatorName||'—')}</span></div>
+          <div class="kv"><span class="k">售价</span><span class="v"><b>${App.fmt.eth(w.price)}</b> ETH</span></div>
+          <div class="row mt-16" style="gap:8px">
+            <a class="btn btn-sm btn-outline btn-block" href="detail.html?id=${w.id}">查看详情</a>
+            <button class="btn btn-sm btn-danger btn-block" data-unfav="${w.id}">取消收藏</button>
+          </div>
+        </div>`;}).join('')}</div>`;
+    },
+
+    lic: () => lics.length ? `<div class="table-wrap"><table class="tb">
+      <thead><tr><th>作品</th><th>授权范围</th><th>期限</th><th>费用</th><th>生效时间</th><th>到期时间</th><th>凭证</th></tr></thead>
+      <tbody>${lics.map(l=>`<tr>
+        <td><a href="detail.html?id=${l.workId}" style="color:#1d4ed8;font-weight:600">${App.esc(l.workTitle)}</a></td>
+        <td>${Store.LICENSE_MAP[l.scope].label}</td>
+        <td>${l.period?l.period+' 年':'永久'}</td>
+        <td><b>${App.fmt.eth(l.price)}</b> ETH</td>
+        <td>${App.fmt.date(l.createdAt)}</td>
+        <td>${l.expiresAt?App.fmt.date(l.expiresAt):'永久有效'}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="App.copy('${l.txHash}')">复制凭证</button></td>
+      </tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty card"><div class="ico">📜</div><p>尚未获得任何作品授权</p><a class="btn btn-primary" href="works.html">去市场看看</a></div>`,
+
+    tx: () => orders.length ? `<div class="table-wrap"><table class="tb">
+      <thead><tr><th>时间</th><th>作品</th><th>类型</th><th>角色</th><th>对方</th><th>金额</th><th>交易哈希</th></tr></thead>
+      <tbody>${orders.map(o=>{
+        const buy = (o.buyer||'').toLowerCase()===sess.address.toLowerCase();
+        return `<tr>
+          <td>${App.fmt.date(o.createdAt)}</td>
+          <td>${App.esc(o.workTitle)}</td>
+          <td><span class="badge ${o.type==='transfer'?'info':'cyan'}">${o.type==='transfer'?'所有权转让':'授权'}</span></td>
+          <td><span class="badge ${buy?'warn':'ok'}">${buy?'买入':'卖出'}</span></td>
+          <td>${App.esc(buy?o.sellerName:o.buyerName)}</td>
+          <td class="${buy?'down':'up'}"><b>${buy?'-':'+'}${App.fmt.eth(o.amount)}</b> ETH</td>
+          <td class="mono" style="font-size:11.6px;cursor:pointer" onclick="App.copy('${o.txHash}')">${App.fmt.addr(o.txHash,6)} ⧉</td>
+        </tr>`;}).join('')}</tbody></table></div>`
+      : `<div class="empty card"><div class="ico">💱</div><p>暂无交易记录</p><a class="btn btn-primary" href="works.html">去市场看看</a></div>`,
+
+    wallet: () => `
+      <div class="grid g-2">
+        <div class="card glow">
+          <div class="row between mb-16"><b>钱包资产</b><span class="badge cyan" id="wMode">${sess.walletMode==='wallet'?'链上钱包':'演示钱包'}</span></div>
+          <div class="mute" style="font-size:12.5px">可用余额</div>
+          <div style="font-size:32px;font-weight:800;letter-spacing:-.6px" id="balance">读取中…</div>
+          <div class="hint mb-16">≈ ¥<span id="balCny">—</span></div>
+          <div class="bar"><i style="width:64%"></i></div>
+          <div class="row between mt-8" style="font-size:12px"><span class="mute">已冻结 0.000 ETH</span><span class="up">今日 +0.000 ETH</span></div>
+          <div class="row mt-24" style="gap:8px">
+            <button class="btn btn-outline btn-block" onclick="App.toast('充值通道演示中，真实环境将跳转钱包','info')">充值</button>
+            <button class="btn btn-block" onclick="App.toast('提现已提交，预计 10 分钟到账','ok')">提现</button>
+          </div>
+        </div>
+        <div class="card">
+          <b class="mb-16">收益明细</b>
+          <div class="kv"><span class="k">作品销售收入</span><span class="v up">+${App.fmt.eth(income)} ETH</span></div>
+          <div class="kv"><span class="k">版税分账收入</span><span class="v up">+${App.fmt.eth(income*0.05)} ETH</span></div>
+          <div class="kv"><span class="k">授权支出</span><span class="v down">-${App.fmt.eth(spend)} ETH</span></div>
+          <div class="kv"><span class="k">Gas 累计消耗</span><span class="v down">-${(orders.length*0.0008).toFixed(4)} ETH</span></div>
+          <div class="kv" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px">
+            <span class="k" style="color:var(--text);font-weight:700">净收益</span>
+            <span class="v up" style="font-weight:800;font-size:18px">${App.fmt.eth(income*1.05-spend-orders.length*0.0008)} ETH</span></div>
+          <div class="hint mt-16">所有分账由 CopyrightRegistry 合约自动执行，平台不经手资金。</div>
+        </div>
+      </div>`,
+
+    setting: () => `
+      <div class="grid g-2">
+        <div class="card">
+          <b>个人资料</b>
+          <div class="field mt-16"><label class="label">昵称 / 创作者名</label><input class="input" id="stName" value="${App.esc(user.name||'')}"></div>
+          <div class="field"><label class="label">联系邮箱</label><input class="input" id="stEmail" value="${App.esc(user.email||'')}" placeholder="用于接收成交与异议通知"></div>
+          <div class="field"><label class="label">个人简介</label><textarea class="textarea" id="stBio" placeholder="介绍一下你的创作方向…">${App.esc(user.bio||'')}</textarea></div>
+          <button class="btn btn-primary btn-block" id="saveProfile">保存资料</button>
+        </div>
+        <div class="card">
+          <b>交易偏好</b>
+          <div class="field mt-16"><label class="label">默认版税率（%）</label><input class="input" type="number" value="5" min="0" max="30"></div>
+          <label class="switch mb-16"><input type="checkbox" checked><span class="track"></span><span style="font-size:13.5px">作品成交后自动接收邮件通知</span></label>
+          <label class="switch mb-16"><input type="checkbox" checked><span class="track"></span><span style="font-size:13.5px">开启侵权监测（每周扫描一次全网）</span></label>
+          <label class="switch mb-16"><input type="checkbox"><span class="track"></span><span style="font-size:13.5px">允许作品入选平台精选推荐位</span></label>
+          <div class="card mt-16" style="padding:14px;background:rgba(220,38,38,.07);border-color:rgba(220,38,38,.25)">
+            <b style="font-size:13.5px;color:#be123c">危险操作</b>
+            <p class="hint mt-8">清除本地演示数据会重置作品、订单与管理记录（仅影响本浏览器），真实链上数据不受影响。</p>
+            <button class="btn btn-danger btn-sm mt-8" id="btnReset">清除本地演示数据</button>
+          </div>
+        </div>
+      </div>`,
+  };
+
+  function show(k){
+    document.getElementById('body').innerHTML = bodies[k]();
+    document.querySelectorAll('.tabs button[data-t]').forEach(b=>b.classList.remove('on'));
+    document.querySelector(`.tabs button[data-t="${k}"]`).classList.add('on');
+    if(k==='wallet'){
+      Web3.balance().then(b=>{
+        document.getElementById('balance').textContent = b + ' ETH';
+        document.getElementById('balCny').textContent = App.fmt.num(Math.round(Number(b)*24500));
+      });
+    }
+    if(k==='setting'){
+      document.getElementById('saveProfile').onclick = ()=>{
+        Store.upsertUser({
+          address: sess.address,
+          name: document.getElementById('stName').value.trim(),
+          email: document.getElementById('stEmail').value.trim(),
+          bio: document.getElementById('stBio').value.trim(),
+        });
+        App.toast('资料已更新','ok');
+        setTimeout(()=>location.reload(), 800);
+      };
+      document.getElementById('btnReset').onclick = ()=>{
+        App.confirm('确认清除？','将重置本机演示数据并回到初始种子状态，此操作不可撤销。','确认清除',()=>{
+          Store.reset();
+          App.toast('本地数据已重置','ok');
+          setTimeout(()=>location.href = App.home(), 900);
+        }, true);
+      };
+    }
+    if(k==='works'){
+      document.querySelectorAll('[data-del]').forEach(b=>{
+        b.onclick = ()=>{
+          const id = b.dataset.del;
+          App.confirm('下架作品','下架后作品将从市场隐藏，链上存证记录仍然保留。','确认下架',()=>{
+            Store.updateWork(id, {status:'rejected'});
+            App.toast('作品已下架','ok');
+            setTimeout(()=>location.reload(), 700);
+          }, true);
+        };
+      });
+      document.querySelectorAll('[data-edit]').forEach(b=>{
+        b.onclick = ()=>editAndList(b.dataset.edit);
+      });
+      document.querySelectorAll('[data-price]').forEach(b=>{
+        b.onclick = ()=>{
+          const id = b.dataset.price;
+          const cur = Store.getWork(id);
+          App.modal({
+            title:'调整售价',
+            body:`<p class="dim" style="margin:0 0 12px">作品《${App.esc(cur.title)}》当前售价 <b>${App.fmt.eth(cur.price)} ETH</b>，调价后立即在市场生效。</p>
+              <div class="field"><label class="label">新售价（ETH）</label><input class="input" id="np" type="number" min="0.001" step="0.001" value="${cur.price}"></div>
+              <div class="hint">最低 ${Store.settings().minPrice} ETH · 二次流转需向原作者支付 ${cur.royalty || 5}% 版税</div>`,
+            buttons:[
+              {text:'取消', cls:'btn-ghost'},
+              {text:'保存', cls:'btn-primary', onClick:()=>{
+                const v = Number(document.getElementById('np').value);
+                if(!v || v <= 0) return App.toast('请输入有效的价格','err');
+                Store.updateWork(id, {price:v});
+                App.toast('售价已更新为 ' + App.fmt.eth(v) + ' ETH','ok');
+                setTimeout(()=>location.reload(), 700);
+              }}
+            ]
+          });
+        };
+      });
+    }
+    if(k==='fav'){
+      document.querySelectorAll('[data-unfav]').forEach(b=>{
+        b.onclick = ()=>{
+          App.toggleFav(b.dataset.unfav);
+          App.toast('已取消收藏','ok');
+          updateFavCount();
+          show('fav');
+        };
+      });
+    }
+  }
+  function updateFavCount(){
+    const el = document.getElementById('favTabCount');
+    if(el) el.textContent = App.favs().length;
+  }
+
+  /* 修改作品内容后自主上架（买断入库 / 主动下架的作品用） */
+  function editAndList(id){
+    const w = Store.getWork(id);
+    if(!w) return;
+    let newCover = w.cover || null;
+    let licSel = App.licenseTypesOf(w).slice();
+    const t = Store.TYPE_MAP[w.type];
+    App.modal({
+      title:'修改作品并上架',
+      body:`
+        <p class="dim" style="margin:0 0 14px">该作品当前不在市场展示。你可以修改展示信息与价格后再上架，链上存证哈希保持不变（如需变更内容请重新确权）。</p>
+        <div class="field"><label class="label">作品名称</label><input class="input" id="edTitle" value="${App.esc(w.title)}"></div>
+        <div class="field"><label class="label">作品简介</label><textarea class="textarea" id="edDesc">${App.esc(w.desc||'')}</textarea></div>
+        <div class="field"><label class="label">封面图 <span>可选替换</span></label>
+          <div class="row" style="gap:12px">
+            <div id="edCover" style="width:88px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:${newCover?'#fff':'var(--surface-2)'};display:grid;place-items:center;flex:none">
+              ${newCover ? `<img src="${newCover}" style="width:100%;height:100%;object-fit:cover">` : `<span class="mute">${t.icon}</span>`}
+            </div>
+            <div style="flex:1"><button class="btn btn-sm btn-outline" id="edPick" type="button">🖼 更换封面</button>
+            <div class="hint mt-8">不更换则沿用现有封面</div></div>
+          </div>
+        </div>
+        <div class="field"><label class="label">可授权方式 <span>可多选 · 至少 1 项</span></label>
+          <div class="row" style="gap:8px;flex-wrap:wrap" id="edLics"></div>
+        </div>
+        <div class="grid g-2" style="gap:14px">
+          <div class="field"><label class="label">ETH 售价（非积分授权）</label><input class="input" id="edPrice" type="number" min="0.001" step="0.001" value="${w.price}"></div>
+          <div class="field hidden" id="edCreditField"><label class="label">个人欣赏授权积分价</label>
+            <input class="input" id="edCredits" type="number" min="10" step="10" value="${w.personalCredits || Math.max(50, Math.round(w.price * 0.15 * Store.CREDIT.rate))}">
+          </div>
+        </div>
+        <div class="hint">上架后作品将重新出现在版权市场；未勾选的授权方式不会展示给买家。</div>`,
+      buttons:[
+        {text:'暂不上架', cls:'btn-ghost'},
+        {text:'保存并上架', cls:'btn-primary', onClick:()=>{
+          const title = document.getElementById('edTitle').value.trim();
+          const price = Number(document.getElementById('edPrice').value);
+          if(!title) return App.toast('请填写作品名称','err');
+          if(!price || price <= 0) return App.toast('请填写有效售价','err');
+          if(!licSel.length) return App.toast('至少需要选择 1 种授权方式','err');
+          Store.updateWork(id, {
+            title,
+            desc: document.getElementById('edDesc').value.trim(),
+            price,
+            licenseType: licSel[0],
+            licenseTypes: licSel.slice(),
+            personalCredits: licSel.indexOf('personal') >= 0
+              ? Number(document.getElementById('edCredits').value) : null,
+            cover: newCover,
+            status: 'approved',
+            listedAt: new Date().toISOString(),
+          });
+          App.toast('《' + title + '》已修改并上架至版权市场','ok','上架成功');
+          setTimeout(()=>location.reload(), 800);
+        }}
+      ]
+    });
+    const licsBox = document.getElementById('edLics');
+    function renderLics(){
+      licsBox.innerHTML = Object.keys(Store.LICENSE_MAP).map(k=>{
+        const on = licSel.indexOf(k) >= 0;
+        return `<button class="badge ${on?'info':''}" data-lic="${k}" style="padding:7px 12px;font-size:12.5px;cursor:pointer;background:${on?'var(--brand-soft)':'#fff'}">
+          ${on?'✓ ':'+ '}${Store.LICENSE_MAP[k].label}${k==='personal'?'（积分）':''}</button>`;
+      }).join('');
+      licsBox.querySelectorAll('[data-lic]').forEach(b=>{
+        b.onclick = ()=>{
+          const k = b.dataset.lic, i = licSel.indexOf(k);
+          if (i >= 0){ if (licSel.length === 1) return App.toast('至少保留 1 种授权方式','err'); licSel.splice(i,1); }
+          else licSel.push(k);
+          renderLics();
+          document.getElementById('edCreditField').classList.toggle('hidden', licSel.indexOf('personal') < 0);
+        };
+      });
+    }
+    renderLics();
+    document.getElementById('edCreditField').classList.toggle('hidden', licSel.indexOf('personal') < 0);
+
+    document.getElementById('edPick').onclick = ()=>{
+      App.pickImage((url)=>{
+        if(!url) return App.toast('封面处理失败，请换一张图片','err');
+        newCover = url;
+        document.getElementById('edCover').innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+        App.toast('封面已更新（保存后生效）','ok');
+      });
+    };
+  }
+  const mb = document.getElementById('dashMsgBadge');
+  if (mb) {
+    const un = Store.unreadFor(sess.address).count;
+    mb.textContent = un;
+    mb.style.display = un ? 'inline-flex' : 'none';
+  }
+
+  show('works');
+  document.querySelectorAll('.tabs button').forEach(b=>{
+    b.onclick = ()=>{
+      if (b.dataset.goto) { location.href = b.dataset.goto; return; }   // 跳转型 Tab（消息中心）
+      if (b.dataset.t) show(b.dataset.t);
+    };
+  });
+}
+</script>
+</body>
+</html>

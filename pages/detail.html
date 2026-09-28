@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>作品详情 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<style>
+  .buy-panel{position:sticky;top:82px}
+  .lic-opt{display:flex;gap:10px;padding:11px 13px;border-radius:12px;border:1px solid var(--line);background:#fafbfc;cursor:pointer;margin-bottom:9px;transition:.2s}
+  .lic-opt:hover{border-color:#c3cddc}
+  .lic-opt.on{border-color:rgba(37,99,235,.7);background:rgba(37,99,235,.12);box-shadow:0 0 0 3px rgba(37,99,235,.09)}
+  .lic-opt .radio{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--text-mute);flex:none;margin-top:3px;position:relative}
+  .lic-opt.on .radio{border-color:#2563eb}
+  .lic-opt.on .radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--grad)}
+</style>
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<section class="container" style="padding:32px 24px 60px" id="root"></section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('works');
+
+/* 注意：buyScope / buyPeriod 必须在 render(w) 调用前初始化，否则触发 TDZ 报错 */
+let buyScope = 'commercial';
+let buyPeriod = 3;
+
+const w = Store.getWork(App.q('id') || '');
+if(!w){
+  document.getElementById('root').innerHTML = `
+    <div class="empty card" style="margin-top:60px">
+      <div class="ico">🗂️</div><p>未找到该作品，可能已下架或链接失效</p>
+      <a class="btn btn-primary" href="works.html">返回版权市场</a>
+    </div>`;
+} else {
+  buyScope = w.licenseType || 'commercial';
+  render(w);
+}
+
+function priceOf(base, scope, period){
+  const lic = Store.LICENSE_MAP[scope];
+  const mul = period === 0 ? 1.6 : period === 1 ? 1 : period === 3 ? 1.35 : 1.5;
+  return +(base * lic.base * (scope==='exclusive' ? 1 : mul)).toFixed(4);
+}
+
+function render(w){
+  const t = Store.TYPE_MAP[w.type];
+  const licTypes = App.licenseTypesOf(w);           // 作者勾选的授权方式
+  const orders = Store.orders().filter(o=>o.workId===w.id);
+  const lics = Store.licenses().filter(l=>l.workId===w.id);
+  const settings = Store.settings();
+  const isOwner = App.session() && App.session().address.toLowerCase() === w.owner.toLowerCase();
+  if (licTypes.indexOf(buyScope) < 0) buyScope = licTypes[0];
+
+  const html = `
+  <div class="crumb"><a href="../index.html">首页</a> / <a href="works.html">版权市场</a> / ${App.esc(w.title)}</div>
+  <div class="grid" style="grid-template-columns:1.35fr .65fr;gap:26px;align-items:start">
+
+    <div class="fade-in">
+      <div class="cover ${t.color}" style="height:300px;border-radius:22px">
+        <span class="top-tag">${t.icon} ${t.label} · Token #${w.tokenId}</span>
+        ${App.coverInner(w, '64px')}
+        <div class="stat-tag"><span>👁 ${App.fmt.num(w.views)}</span><span>♥ ${App.fmt.num(w.likes)}</span><span>📜 ${App.fmt.num(lics.length)}</span></div>
+      </div>
+
+      <div class="row between wrap mt-24">
+        <div>
+          <h1 style="margin:0 0 6px;font-size:30px">${App.esc(w.title)}</h1>
+          <div class="row wrap" style="gap:8px">
+            ${licTypes.map(k=>`<span class="badge ${k==='personal'?'cyan':'info'}">${App.esc(Store.LICENSE_MAP[k].label)}</span>`).join('')}
+            ${w.status==='approved'?'<span class="badge ok">已上链确权</span>':'<span class="badge warn">'+ (w.status==='pending'?'审核中':'已下架') +'</span>'}
+            <span class="badge cyan">⛓ ${Web3.chainLabel()}</span>
+            ${w.resale ? '<span class="badge cyan">二次流转 · 可转售</span>' : ''}
+            ${w.allowDerivative ? '<span class="badge">允许改编</span>' : ''}
+          </div>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <button class="btn" id="btnLike">${App.isFav(w.id) ? '❤️ 已收藏' : '♡ 收藏'}</button>
+          <button class="btn btn-outline" id="btnThumb">👍 点赞 ${App.fmt.num(w.likes)}</button>
+          <button class="btn btn-outline" id="btnReport">⚖️ 侵权举证</button>
+        </div>
+      </div>
+
+      <div class="row mt-16" style="gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:16px">
+        <div class="avatar lg" style="background:${App.avatarColor(w.creatorName)}">${App.esc(App.initial(w.creatorName))}</div>
+        <div style="flex:1">
+          <div class="mute" style="font-size:11.5px">原创作者 · 当前所有权人</div>
+          <div style="font-weight:700">${App.esc(w.creatorName)}</div>
+          <div class="mono mute" style="font-size:11.6px">${App.esc(w.creator)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="mute" style="font-size:11.5px">累计成交</div>
+          <div style="font-weight:700;font-size:17px">${App.fmt.num(orders.length + (w.licenseCount||0))}</div>
+        </div>
+      </div>
+
+      <div class="tabs mt-24">
+        <button class="on" data-t="info">作品详情</button>
+        <button data-t="proof">链上存证</button>
+        <button data-t="lic">授权记录 (${lics.length})</button>
+        <button data-t="tx">交易历史 (${orders.length})</button>
+        <button data-t="rev">用户评价 (${Store.reviewsOf(w.id).length})</button>
+      </div>
+
+      <div id="tabBody" class="mt-16"></div>
+    </div>
+
+    <!-- 购买面板 -->
+    <div class="buy-panel">
+      <div class="card glow">
+        <div class="row between mb-16">
+          <span class="mute" style="font-size:12.5px">上架价格</span>
+          <span class="badge ${w.status==='approved'?'ok':'warn'}">${w.status==='approved'?'可交易':'暂不可交易'}</span>
+        </div>
+        <div id="priceHead">
+          <div style="font-size:30px;font-weight:800;letter-spacing:-.6px">${App.fmt.eth(w.price)} <small style="font-size:14px;color:var(--text-mute)">ETH</small></div>
+          <div class="hint mb-16">≈ ¥ ${App.fmt.num(Math.round(w.price * 24500))} · 版税 ${w.royalty || 5}%</div>
+        </div>
+
+        <div class="mb-8" style="font-size:13px;font-weight:600">选择授权方式 <span class="mute" style="font-weight:400">作者开放 ${licTypes.length} 种</span></div>
+        <div id="scopeList"></div>
+
+        <div class="card mb-8" id="creditBox" style="padding:12px 14px;background:var(--brand-soft);border-color:#cfdefd">
+          <div class="row between">
+            <span style="font-size:12.5px">我的积分余额</span>
+            <a href="credits.html" style="font-size:12px;color:#1d4ed8">赚积分 →</a>
+          </div>
+          <div style="font-size:20px;font-weight:800" id="myCredits">—</div>
+        </div>
+
+        <div class="field mt-16">
+          <label class="label">授权期限</label>
+          <select class="select" id="buyPeriod">
+            <option value="1">1 年</option><option value="3" selected>3 年</option>
+            <option value="5">5 年</option><option value="0">永久</option>
+          </select>
+        </div>
+
+        <div style="border-top:1px solid var(--line-soft);padding-top:12px;margin-top:6px">
+          <div class="kv"><span class="k">授权费用</span><span class="v" id="sumLic">—</span></div>
+          <div class="kv"><span class="k">网络 Gas（估算）</span><span class="v" id="sumGas">—</span></div>
+          <div class="kv"><span class="k">平台服务费 2.5%</span><span class="v" id="sumFee">—</span></div>
+          <div class="kv" style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px">
+            <span class="k" style="color:var(--text);font-weight:700">合计</span>
+            <span class="v" style="font-weight:800;font-size:19px" id="sumTotal">—</span>
+          </div>
+        </div>
+
+        ${isOwner
+          ? `<button class="btn btn-lg btn-block mt-16" id="btnManage">✏️ 管理我的作品</button>
+             <a class="btn btn-outline btn-lg btn-block mt-8" href="messages.html">💬 消息中心（查看买家议价）</a>
+             <p class="hint center mt-8">你是该作品的所有权人</p>`
+          : `<button class="btn btn-primary btn-lg btn-block mt-16" id="btnBuy">🔐 立即获取授权</button>
+             <button class="btn btn-lg btn-block mt-8" id="btnOffer">💬 向作者发起议价</button>
+             <a class="btn btn-outline btn-lg btn-block mt-8" href="messages.html">💬 进入消息中心</a>
+             <p class="hint center mt-8">托管交易 · 资金经合约交割，支持链上查验</p>`}
+      </div>
+
+      <div class="card mt-16" style="padding:16px">
+        <b style="font-size:13.5px">⛓ 最近一笔链上交易</b>
+        <div class="mono mt-8" style="font-size:11.4px;color:#1d4ed8;word-break:break-all">${App.fmt.addr(w.txHash, 14)}</div>
+        <div class="hint mt-8">区块 #${App.fmt.num(w.blockNumber)} · ${App.fmt.ago(w.createdAt)}</div>
+        <div class="row mt-16" style="gap:8px">
+          <button class="btn btn-sm btn-outline btn-block" id="cpTx2">复制交易哈希</button>
+          <a class="btn btn-sm btn-ghost btn-block" href="${settings.explorer}/tx/${w.txHash}" target="_blank" rel="noopener">区块浏览器 ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="padding:40px 0 0">
+    <div class="row between mb-16"><h3 style="margin:0;font-size:19px">同类推荐</h3><a class="btn btn-sm btn-ghost" href="works.html">查看更多 →</a></div>
+    <div class="grid g-3" id="related"></div>
+  </div>`;
+
+  document.getElementById('root').innerHTML = html;
+
+  /* 授权选项 */
+  function renderScope(){
+    document.getElementById('scopeList').innerHTML = licTypes.map(k=>{
+      const m = Store.LICENSE_MAP[k];
+      const priceTag = k === 'personal'
+        ? App.fmt.num(creditPrice(w, buyPeriod === 'exclusive' ? 0 : Number(document.getElementById('buyPeriod').value))) + ' ' + Store.CREDIT.unit
+        : (k==='exclusive' ? '买断' : '+'+priceOf(w.price,k,buyPeriod)+' ETH');
+      return `<div class="lic-opt ${buyScope===k?'on':''}" data-k="${k}">
+        <div class="radio"></div>
+        <div style="flex:1">
+          <div class="row between"><b style="font-size:13.8px">${m.label}${k==='personal'?' <span class="badge cyan" style="font-size:10.5px">积分</span>':''}</b>
+          <span style="font-size:12.6px;color:#1d4ed8">${priceTag}</span></div>
+          <div class="mute" style="font-size:11.6px;line-height:1.5">${m.desc}</div>
+        </div></div>`;
+    }).join('');
+    document.querySelectorAll('#scopeList .lic-opt').forEach(el=>{
+      el.onclick = ()=>{ buyScope = el.dataset.k; renderScope(); calc(); };
+    });
+  }
+  /* 个人欣赏授权的积分价（期限系数与 ETH 一致） */
+  function creditPrice(w, period){
+    const mul = period === 0 ? 1.6 : period === 1 ? 1 : period === 3 ? 1.35 : 1.5;
+    return Math.round((w.personalCredits || Math.max(50, Math.round(w.price * 0.15 * Store.CREDIT.rate))) * mul);
+  }
+  function calc(){
+    const period = buyScope === 'exclusive' ? 0 : Number(document.getElementById('buyPeriod').value);
+    if (buyScope === 'personal'){
+      const credits = creditPrice(w, period);
+      const mine = App.session() ? Store.creditsOf(App.session().address) : 0;
+      document.getElementById('sumLic').textContent = App.fmt.num(credits) + ' ' + Store.CREDIT.unit;
+      document.getElementById('sumGas').textContent = '0 ETH（平台承担）';
+      document.getElementById('sumFee').textContent = '0 ' + Store.CREDIT.unit;
+      document.getElementById('sumTotal').textContent = App.fmt.num(credits) + ' ' + Store.CREDIT.unit;
+      document.getElementById('priceHead').innerHTML =
+        `<div style="font-size:30px;font-weight:800;letter-spacing:-.6px">${App.fmt.num(credits)} <small style="font-size:14px;color:var(--text-mute)">${Store.CREDIT.unit} 积分</small></div>
+         <div class="hint mb-16">≈ ${(credits / Store.CREDIT.rate).toFixed(4)} ETH · 我的余额 ${App.fmt.num(mine)} ${Store.CREDIT.unit}${mine < credits ? ' · <span style="color:#be123c">不足</span>' : ''}</div>`;
+      const bb = document.getElementById('btnBuy');
+      if (bb) bb.textContent = mine >= credits ? '🎟️ 使用积分获取授权' : '积分不足 · 去赚积分';
+      return {credits, p:0, fee:0, gas:0, mine};
+    }
+    const base = priceOf(w.price, buyScope, period);
+    const p = buyScope === 'exclusive' ? w.price : base;
+    const fee = +(p * App.settingsFee()).toFixed(4);
+    const gas = 0.00072;
+    document.getElementById('priceHead').innerHTML =
+      `<div style="font-size:30px;font-weight:800;letter-spacing:-.6px">${App.fmt.eth(p)} <small style="font-size:14px;color:var(--text-mute)">ETH</small></div>
+       <div class="hint mb-16">≈ ¥ ${App.fmt.num(Math.round(p * 24500))} · 版税 ${w.royalty || 5}%</div>`;
+    document.getElementById('sumLic').textContent = App.fmt.eth(p) + ' ETH';
+    document.getElementById('sumGas').textContent = gas.toFixed(6) + ' ETH';
+    document.getElementById('sumFee').textContent = App.fmt.eth(fee) + ' ETH';
+    document.getElementById('sumTotal').textContent = App.fmt.eth(p + fee + gas) + ' ETH';
+    const bb = document.getElementById('btnBuy');
+    if (bb) bb.textContent = '🔐 立即获取授权';
+    return {p, fee, gas};
+  }
+  App.settingsFee = ()=> (Store.settings().platformFee || 2.5) / 100;
+
+  renderScope();
+  document.getElementById('buyPeriod').onchange = calc;
+  calc();
+
+  document.getElementById('cpTx2').onclick = ()=>App.copy(w.txHash);
+  /* 我的积分余额 */
+  const mc = document.getElementById('myCredits');
+  if (mc) mc.textContent = App.session()
+    ? App.fmt.num(Store.creditsOf(App.session().address)) + ' ' + Store.CREDIT.unit
+    : '登录后可查看';
+
+  const bl = document.getElementById('btnLike');
+  if (bl) bl.onclick = ()=>{
+    const s = App.session();
+    if (!s) return App.requireLogin('detail.html?id=' + w.id);
+    const was = App.isFav(w.id);
+    App.toggleFav(w.id);
+    if (!was){
+      const aw = Store.favAward(s.address, w.id);
+      if (aw.ok) App.toast('已收藏 · 获得 ' + aw.amount + ' ' + Store.CREDIT.unit + ' 积分', 'ok', '收藏成功');
+      else App.toast('已加入我的收藏，可在「我的版权」查看', 'ok', '收藏成功');
+    } else {
+      App.toast('已取消收藏', 'ok');
+    }
+    setTimeout(()=>location.reload(), 550);
+  };
+  const bt = document.getElementById('btnThumb');
+  if (bt) bt.onclick = ()=>{
+    const s = App.session();
+    if (!s) return App.requireLogin('detail.html?id=' + w.id);
+    Store.updateWork(w.id, {likes: (w.likes||0) + 1});
+    const aw = Store.likeAward(s.address);
+    if (aw.ok) App.toast('点赞成功 · +' + aw.amount + ' ' + Store.CREDIT.unit + '（今日还可获得 ' + aw.left + ' 次）', 'ok');
+    else App.toast('点赞成功（' + aw.reason + '）', 'ok');
+    setTimeout(()=>location.reload(), 550);
+  };
+  const br = document.getElementById('btnReport');
+  if (br) br.onclick = ()=>evidenceModal(w);
+  const bo = document.getElementById('btnOffer');
+  if (bo) bo.onclick = ()=>negotiateModal(w);
+  const bb = document.getElementById('btnBuy');
+  if (bb) bb.onclick = ()=>doBuy(w, calc);
+  if (document.getElementById('btnManage')) document.getElementById('btnManage').onclick = ()=>location.href='dashboard.html';
+
+  /* tabs */
+  const bodies = {
+    info: `
+      <div class="card">
+        <h4 style="margin:0 0 10px">作品简介</h4>
+        <p class="dim" style="margin:0;font-size:14.5px;line-height:1.85">${App.esc(w.desc)}</p>
+        <div class="tags mt-16">${(w.tags||[]).map(x=>`<span class="tag">#${App.esc(x)}</span>`).join('')}</div>
+        <div class="grid g-3 mt-24">
+          <div class="kv"><span class="k">作品品类</span><span class="v">${App.esc(t.label)}</span></div>
+          <div class="kv"><span class="k">文件名</span><span class="v mono" style="font-size:12px">${App.esc(w.fileName||'—')}</span></div>
+          <div class="kv"><span class="k">文件大小</span><span class="v">${App.esc(w.fileSize||'—')}</span></div>
+          <div class="kv"><span class="k">存证时间</span><span class="v">${App.fmt.dateTime(w.createdAt)}</span></div>
+          <div class="kv"><span class="k">版税率</span><span class="v">${w.royalty || 5}%</span></div>
+          <div class="kv"><span class="k">可否改编</span><span class="v">${w.allowDerivative ? '允许' : '不允许'}</span></div>
+        </div>
+      </div>`,
+    proof: `
+      <div class="card glow">
+        <div class="row between mb-16"><b>链上存证信息</b><span class="badge ok">✓ 已验证</span></div>
+        <div class="kv"><span class="k">存证合约</span><span class="v mono" style="font-size:11.6px">${settings.contract}</span></div>
+        <div class="kv"><span class="k">Token ID</span><span class="v">#${w.tokenId}</span></div>
+        <div class="kv"><span class="k">所有权人</span><span class="v mono" style="font-size:11.6px">${App.esc(w.owner)}</span></div>
+        <div class="kv"><span class="k">创建交易</span><span class="v mono" style="font-size:11.6px">${App.esc(w.txHash)}</span></div>
+        <div class="kv"><span class="k">区块高度</span><span class="v">#${App.fmt.num(w.blockNumber)}</span></div>
+        <div class="kv"><span class="k">IPFS CID</span><span class="v mono" style="font-size:11.6px">${App.esc(w.cdn)}</span></div>
+        <div class="mt-16">
+          <div class="hint mb-8">SHA-256 内容指纹</div>
+          <div class="mono" style="font-size:11.4px;color:#1d4ed8;line-height:1.7;word-break:break-all;background:#f7f8fa;padding:12px;border-radius:12px">${App.esc(w.hash)}</div>
+        </div>
+        <div class="row mt-16" style="gap:8px">
+          <button class="btn btn-sm btn-outline" id="verifyBtn">🔍 校验文件一致性</button>
+          <a class="btn btn-sm btn-ghost" href="${settings.explorer}/tx/${w.txHash}" target="_blank" rel="noopener">在区块浏览器查看 ↗</a>
+        </div>
+        <div id="verifyOut" class="mt-16"></div>
+      </div>`,
+    lic: `
+      <div class="card">
+        <b class="mb-16">已发出的授权凭证</b>
+        ${lics.length ? `<table class="tb" style="margin-top:12px">
+          <thead><tr><th>被授权方</th><th>范围</th><th>期限</th><th>费用</th><th>状态</th></tr></thead>
+          <tbody>${lics.map(l=>`<tr>
+            <td><div style="font-weight:600">${App.esc(l.licenseeName)}</div><div class="mono mute" style="font-size:11px">${App.fmt.addr(l.licensee,6)}</div></td>
+            <td>${Store.LICENSE_MAP[l.scope].label}</td>
+            <td>${l.period ? l.period + ' 年' : '永久'}</td>
+            <td>${App.fmt.eth(l.price)} ETH</td>
+            <td><span class="badge ${l.status==='active'?'ok':'err'}">${l.status==='active'?'生效中':'已失效'}</span></td>
+          </tr>`).join('')}</tbody></table>`
+        : `<div class="empty" style="padding:30px 0"><div class="ico">📜</div><p>暂无链上授权记录，成为第一个获取授权的买家</p></div>`}
+        <div class="hint mt-16">授权凭证以 NFT 形式存在于被授权方钱包，到期后自动失效，链上可永久追溯。</div>
+      </div>`,
+    tx: `
+      <div class="card">
+        <b class="mb-16">历史成交记录</b>
+        ${orders.length ? `<table class="tb" style="margin-top:12px">
+          <thead><tr><th>时间</th><th>类型</th><th>买方</th><th>金额</th><th>交易哈希</th></tr></thead>
+          <tbody>${orders.map(o=>`<tr>
+            <td>${App.fmt.date(o.createdAt)}</td>
+            <td><span class="badge ${o.type==='transfer'?'info':'cyan'}">${o.type==='transfer'?'所有权转让':'授权'}</span></td>
+            <td>${App.esc(o.buyerName)}</td>
+            <td><b>${App.fmt.eth(o.amount)}</b> ETH</td>
+            <td class="mono" style="font-size:11.4px">${App.fmt.addr(o.txHash,6)}</td>
+          </tr>`).join('')}</tbody></table>`
+        : `<div class="empty" style="padding:30px 0"><div class="ico">🧾</div><p>暂无成交记录</p></div>`}
+      </div>`,
+    rev: () => reviewTab(w),
+  };
+  document.getElementById('tabBody').innerHTML = bodies.info;
+  document.querySelectorAll('.tabs button[data-t]').forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll('.tabs button[data-t]').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      const body = bodies[b.dataset.t];
+      document.getElementById('tabBody').innerHTML = typeof body === 'function' ? body() : body;
+      if(b.dataset.t==='proof'){
+        const v = document.getElementById('verifyBtn');
+        if(v) v.onclick = ()=>verifyFile(w);
+      }
+      if(b.dataset.t==='rev') bindReview(w);
+    };
+  });
+
+  /* 推荐 */
+  document.getElementById('related').innerHTML = Store.works()
+    .filter(x=>x.id!==w.id && x.status==='approved' && x.type===w.type).slice(0,3)
+    .concat(Store.works().filter(x=>x.id!==w.id && x.status==='approved' && x.type!==w.type).slice(0,3))
+    .slice(0,3).map(App.workCard).join('');
+}
+
+/* ---------- 用户评价 ---------- */
+function reviewTab(w){
+  const list = Store.reviewsOf(w.id);
+  const avg = list.length ? list.reduce((a,r)=>a+r.rating,0)/list.length : 0;
+  const stars = n => '★'.repeat(Math.max(0,Math.min(5,n))) + '☆'.repeat(5-Math.max(0,Math.min(5,n)));
+  const s = App.session();
+  return `
+  <div class="card">
+    <div class="row between wrap mb-16">
+      <div class="row" style="gap:16px">
+        <div style="font-size:34px;font-weight:800;letter-spacing:-.5px">${list.length?avg.toFixed(1):'—'}</div>
+        <div>
+          <div style="color:#fbbf24;font-size:15px;letter-spacing:2px">${list.length?stars(Math.round(avg)):'暂无评分'}</div>
+          <div class="mute" style="font-size:12px">${list.length} 条来自已购用户的评价</div>
+        </div>
+      </div>
+      <span class="badge cyan">💬 评价公开可查</span>
+    </div>
+
+    ${list.length ? list.map(r=>`
+      <div class="card" style="padding:14px 16px;margin-bottom:10px;background:#fafbfc">
+        <div class="row between wrap">
+          <div class="row" style="gap:10px">
+            <div class="avatar sm" style="background:${App.avatarColor(r.buyerName)}">${App.esc(App.initial(r.buyerName))}</div>
+            <div>
+              <div style="font-size:13.5px;font-weight:600">${App.esc(r.buyerName)}</div>
+              <div class="mute" style="font-size:11.5px">${App.fmt.ago(r.createdAt)} · 已获得授权</div>
+            </div>
+          </div>
+          <span style="color:#fbbf24;font-size:13.5px;letter-spacing:1.5px">${stars(r.rating)}</span>
+        </div>
+        <p class="dim" style="margin:10px 0 0;font-size:13.6px">${App.esc(r.text)}</p>
+        ${r.reply?`<div class="card mt-8" style="padding:10px 12px;background:rgba(37,99,235,.08);border-color:rgba(37,99,235,.22);font-size:12.8px">
+          <b style="color:#1d4ed8">作者回复：</b><span class="dim">${App.esc(r.reply)}</span></div>`:''}
+      </div>`).join('')
+    : `<div class="empty" style="padding:22px 0"><div class="ico">💬</div><p>还没有用户评价，购买授权后来留下第一条评价吧</p></div>`}
+
+    <div style="border-top:1px solid var(--line-soft);padding-top:16px;margin-top:14px">
+      <b style="font-size:14.5px">发表评价</b>
+      ${s ? `
+      <div class="row mt-16 mb-8" style="gap:2px" id="rateStars">
+        ${[1,2,3,4,5].map(i=>`<button data-s="${i}" style="background:none;border:none;font-size:25px;cursor:pointer;padding:0 3px;line-height:1">★</button>`).join('')}
+        <span class="hint" style="margin-left:8px" id="rateLabel">点击选择评分</span>
+      </div>
+      <textarea class="textarea" id="revText" placeholder="说说作品的交付质量、沟通体验、授权范围是否清晰…（10 字以上）"></textarea>
+      <div class="row between mt-16 wrap" style="gap:10px">
+        <span class="hint">评价公开显示你的昵称，发布后不可修改</span>
+        <button class="btn btn-primary" id="revSubmit">发布评价</button>
+      </div>`
+      : `<p class="hint mt-8">请先 <a style="color:#1d4ed8;cursor:pointer" onclick="App.connectFlow('detail.html?id=${w.id}')">登录</a> 后发表评价</p>`}
+    </div>
+  </div>`;
+}
+
+let curRating = 5;
+function bindReview(w){
+  const wrap = document.getElementById('rateStars');
+  if(!wrap) return;
+  const paint = ()=>{
+    wrap.querySelectorAll('button').forEach(b=>{
+      b.style.color = +b.dataset.s <= curRating ? '#f59e0b' : '#d8dee9';
+    });
+    const lb = document.getElementById('rateLabel');
+    if (lb) lb.textContent = ['','很差','一般','还不错','满意','非常满意'][curRating];
+  };
+  wrap.querySelectorAll('button').forEach(b=>b.onclick=()=>{ curRating = +b.dataset.s; paint(); });
+  paint();
+  const btn = document.getElementById('revSubmit');
+  if (btn) btn.onclick = ()=>{
+    const s = App.session();
+    if(!s) return App.requireLogin('detail.html?id=' + w.id);
+    const text = document.getElementById('revText').value.trim();
+    if(text.length < 10) return App.toast('评价内容至少写 10 个字，帮助其他买家做决策','err');
+    Store.addReview({
+      id:'r_'+Date.now(), workId:w.id, workTitle:w.title,
+      buyer:s.address, buyerName:s.name, rating:curRating, text,
+      createdAt:new Date().toISOString(), reply:null
+    });
+    App.toast('感谢你的评价！','ok','发布成功');
+    document.getElementById('tabBody').innerHTML = reviewTab(w);
+    curRating = 5;
+    bindReview(w);
+    const tb = document.querySelector('.tabs button[data-t="rev"]');
+    if(tb) tb.innerHTML = '用户评价 (' + Store.reviewsOf(w.id).length + ')';
+  };
+}
+
+/* ---------- 议价对话 ---------- */
+function negotiateModal(w){
+  const s = App.session();
+  if(!s) return App.requireLogin('detail.html?id=' + w.id);
+  if(s.address.toLowerCase() === w.owner.toLowerCase())
+    return App.toast('这是你自己的作品，无需议价','info');
+
+  let nego = Store.getNegotiation(w.id, s.address);
+  if(!nego){
+    nego = {
+      id:'n_'+Date.now(), workId:w.id, workTitle:w.title,
+      buyer:s.address, buyerName:s.name,
+      seller:w.owner, sellerName:w.ownerName,
+      status:'open', createdAt:new Date().toISOString(), messages:[]
+    };
+    Store.upsertNegotiation(nego);
+  }
+  const replies = [
+    '收到你的消息！这个价格略低于我的心理预期，如果把授权范围缩小到个人使用，可以再聊聊。',
+    '感谢关注这部作品。商用授权的话我一般按标价 9 折走，包含完整源文件交付。',
+    '方便说下具体使用场景和投放周期吗？我可以按场景给你配一个更合适的授权组合。',
+    '独家买断需要包含后续所有衍生权利，价格上需要单独评估，你可以先报个预算区间。',
+    '可以，再送你一次免费的修改调整，本周内确认就有这个价。',
+  ];
+  const autoReply = Store.autoReplyOf(w.owner);   // 作者的自动回复设置
+  function bubble(m){
+    const mine = m.from === 'buyer';
+    return `<div class="row" style="gap:8px;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:12px">
+      ${mine?'':`<div class="avatar sm" style="background:${App.avatarColor(w.ownerName)}">${App.esc(App.initial(w.ownerName))}</div>`}
+      <div style="max-width:74%">
+        <div style="padding:9px 13px;border-radius:14px;font-size:13.4px;line-height:1.6;white-space:pre-wrap;background:${mine?'rgba(37,99,235,.26)':'#fafbfc'};border:1px solid var(--line-soft)">${App.esc(m.text)}</div>
+        <div class="mute" style="font-size:10.8px;margin-top:3px;text-align:${mine?'right':'left'}">${App.fmt.dateTime(m.at)}</div>
+      </div>
+      ${mine?`<div class="avatar sm" style="background:${App.avatarColor(s.name)}">${App.esc(App.initial(s.name))}</div>`:''}
+    </div>`;
+  }
+  function render(){
+    const box = document.getElementById('negoMsgs');
+    if(!box) return;
+    box.innerHTML = nego.messages.length
+      ? nego.messages.map(bubble).join('')
+      : `<div class="empty" style="padding:16px 0"><p>暂无消息，向作者打个招呼并报出你的心理价位吧</p></div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  function send(){
+    const inp = document.getElementById('negoInput');
+    const text = inp.value.trim();
+    if(!text) return;
+    nego.messages.push({from:'buyer', text, at:new Date().toISOString()});
+    nego.buyerReadAt = new Date().toISOString();
+    Store.upsertNegotiation(nego);
+    inp.value = '';
+    render();
+    App.refreshMsg();
+    const tip = document.getElementById('negoTip');
+    tip.textContent = w.ownerName + ' 正在输入…';
+    const replyText = (autoReply.enabled && autoReply.text)
+      ? autoReply.text
+      : replies[Math.floor(Math.random()*replies.length)];
+    setTimeout(()=>{
+      nego.messages.push({from:'seller', text:replyText, at:new Date().toISOString(), auto: !!(autoReply.enabled && autoReply.text)});
+      Store.upsertNegotiation(nego);
+      tip.textContent = '';
+      render();
+      App.refreshMsg();
+      App.toast(w.ownerName + ' 回复了你的议价消息','info');
+    }, 1100 + Math.random()*900);
+  }
+
+  App.modal({
+    title:'💬 议价对话 · ' + w.title,
+    body:`
+      <div class="row between wrap mb-16" style="font-size:12.6px;gap:8px">
+        <span class="dim">与作者 <b style="color:var(--text)">${App.esc(w.ownerName)}</b> 直接沟通</span>
+        <span class="badge info">当前标价 ${App.fmt.eth(w.price)} ETH</span>
+      </div>
+      <div id="negoMsgs" style="max-height:280px;overflow-y:auto;padding:8px 2px;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)"></div>
+      <div class="row mt-16" style="gap:8px">
+        <input class="input" id="negoInput" placeholder="输入消息，如：个人使用 0.3 ETH 可以吗？" style="flex:1">
+        <button class="btn btn-primary" id="negoSend">发送</button>
+      </div>
+      <div class="hint mt-8" id="negoTip"></div>
+      <div class="hint mt-8">消息会同时发送到作者的消息栏，作者回复后你会在这里与消息中心同步看到。</div>`,
+    buttons:[
+      {text:'进入消息中心', cls:'btn-outline', onClick:()=>location.href='messages.html'},
+      {text:'关闭', cls:'btn-ghost'}
+    ]
+  });
+  render();
+  document.getElementById('negoSend').onclick = send;
+  document.getElementById('negoInput').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+}
+
+function verifyFile(w){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.onchange = async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    App.toast('正在本地计算文件哈希并比对链上记录…','info');
+    let hex = null;
+    try{
+      const buf = await f.arrayBuffer();
+      const d = await crypto.subtle.digest('SHA-256', buf);
+      hex = '0x' + Array.from(new Uint8Array(d)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }catch(err){}
+    const out = document.getElementById('verifyOut');
+    const ok = hex && hex === w.hash;
+    out.innerHTML = `<div class="card" style="padding:14px;border-color:${ok?'rgba(5,150,105,.4)':'rgba(220,38,38,.4)'}">
+      <div class="row" style="gap:10px"><span style="font-size:20px">${ok?'✅':'⚠️'}</span>
+      <div><div style="font-weight:700">${ok?'文件一致，确权有效':'哈希不一致或环境不支持本地摘要'}</div>
+      <div class="mono mute" style="font-size:11.2px;word-break:break-all">本地：${(hex||'不可用').slice(0,42)}…</div>
+      <div class="mono mute" style="font-size:11.2px;word-break:break-all">链上：${(w.hash||'').slice(0,42)}…</div></div></div></div>`;
+    App.toast(ok ? '校验通过：该文件与链上存证指纹完全一致' : '校验未通过：文件与存证指纹不一致，请确认源文件', ok?'ok':'err');
+    inp.remove();
+  };
+  inp.click();
+}
+
+function evidenceModal(w){
+  App.modal({
+    title:'⚖️ 生成侵权举证包',
+    body:`<p class="dim" style="margin:0 0 14px">举证包包含：原始哈希指纹、首次存证时间戳、历次流转记录与合约地址，可被司法机关核验。</p>
+      <div class="kv"><span class="k">举证作品</span><span class="v">${App.esc(w.title)}</span></div>
+      <div class="kv"><span class="k">首次存证</span><span class="v">${App.fmt.dateTime(w.createdAt)}</span></div>
+      <div class="kv"><span class="k">举证方</span><span class="v">${App.session()?App.esc(App.session().name):'未登录'}</span></div>
+      <div class="hint mt-16">提交后平台法务与公证节点将在 1 个工作日内完成证据固化。</div>`,
+    buttons:[{text:'取消',cls:'btn-ghost'},{text:'提交举证',cls:'btn-primary',onClick:()=>{
+      App.toast('举证包已生成并提交至合作公证节点，处理编号 #EV' + Date.now().toString().slice(-8),'ok','举证已受理');
+    }}]
+  });
+}
+
+async function doBuy(w, calc){
+  const s = App.session();
+  if(!s) return App.requireLogin('detail.html?id=' + w.id);
+  if(w.status !== 'approved') return App.toast('该作品当前未在市场出售（已被持有人下架或入库），暂不可交易','err');
+  if(s.address.toLowerCase() === w.owner.toLowerCase()) return App.toast('你已经是该作品的所有权人','err');
+
+  const r = calc();
+  const {p, fee, gas} = r;
+  const total = +(p + fee + gas).toFixed(4);
+
+  /* ---- 个人欣赏授权：仅可用积分支付 ---- */
+  if (buyScope === 'personal'){
+    const credits = r.credits;
+    const mine = Store.creditsOf(s.address);
+    if (mine < credits){
+      App.modal({
+        title:'积分不足',
+        body:`<p class="dim" style="margin:0 0 14px">该授权需要 <b>${App.fmt.num(credits)} ${Store.CREDIT.unit}</b>，你当前有 <b>${App.fmt.num(mine)} ${Store.CREDIT.unit}</b>，还差 <b style="color:#be123c">${App.fmt.num(credits - mine)} ${Store.CREDIT.unit}</b>。</p>
+          <div class="hint">积分可通过每日签到、点赞、收藏免费获得，也可用 ETH 兑换（1 ETH = ${Store.CREDIT.rate} ${Store.CREDIT.unit}）。</div>`,
+        buttons:[
+          {text:'关闭', cls:'btn-ghost'},
+          {text:'去积分中心', cls:'btn-primary', onClick:()=>location.href='credits.html'}
+        ]
+      });
+      return;
+    }
+    App.confirm('确认使用积分', `
+      <div class="card" style="padding:14px;margin-bottom:14px">
+        <div class="row between mb-8"><span class="dim">作品</span><b>${App.esc(w.title)}</b></div>
+        <div class="row between mb-8"><span class="dim">授权范围</span><b>个人欣赏授权（非商用）</b></div>
+        <div class="row between"><span class="dim">期限</span><b>${Number(document.getElementById('buyPeriod').value)||'永久'} 年</b></div>
+      </div>
+      <div class="kv"><span class="k">消耗积分</span><span class="v">-${App.fmt.num(credits)} ${Store.CREDIT.unit}</span></div>
+      <div class="kv"><span class="k">支付后余额</span><span class="v">${App.fmt.num(mine - credits)} ${Store.CREDIT.unit}</span></div>`,
+      '确认兑换', async ()=>{
+        App.modal({title:'处理中', body:`
+          <div class="tx-step"><div class="tx-ico run">⏳</div><div>扣除积分并写入授权凭证<div class="mute" style="font-size:12px">验证积分余额…</div></div></div>
+          <div class="tx-step"><div class="tx-ico">2</div><div>铸造个人欣赏授权 License NFT</div></div>`, buttons:[]});
+        await new Promise(res=>setTimeout(res, 1400));
+        const okSpend = Store.spendCredits(s.address, credits, '个人欣赏授权 · ' + w.title);
+        if (!okSpend) { App.closeModal(); return App.toast('积分扣除失败，请重试','err'); }
+        const tx = await Web3.sendTx('grantLicense', {tokenId:w.tokenId, value:0, credits});
+        Store.addLicense({
+          id:'l_'+Date.now(), workId:w.id, workTitle:w.title,
+          licensee:s.address, licenseeName:s.name, scope:'personal',
+          period: Number(document.getElementById('buyPeriod').value),
+          price: 0, credits,
+          txHash: tx.hash, createdAt:new Date().toISOString(),
+          expiresAt: Number(document.getElementById('buyPeriod').value)
+            ? new Date(Date.now() + Number(document.getElementById('buyPeriod').value)*365*864e5).toISOString() : null,
+          status:'active'
+        });
+        Store.addOrder({
+          id:'o_'+Date.now(), workId:w.id, workTitle:w.title,
+          type:'license', scope:'personal',
+          period: Number(document.getElementById('buyPeriod').value),
+          amount: 0, credits, pay:'credit', fee:0,
+          buyer:s.address, buyerName:s.name, seller:w.owner, sellerName:w.ownerName,
+          txHash:tx.hash, status:'success', createdAt:new Date().toISOString(),
+        });
+        Store.updateWork(w.id, {licenseCount:(w.licenseCount||0)+1});
+        App.closeModal();
+        App.modal({
+          title:'🎉 兑换成功',
+          body:`<p class="dim" style="margin:0 0 14px">已用 <b>${App.fmt.num(credits)} ${Store.CREDIT.unit}</b> 获取《${App.esc(w.title)}》的个人欣赏授权，凭证已写入你的钱包。</p>
+            <div class="kv"><span class="k">剩余积分</span><span class="v">${App.fmt.num(Store.creditsOf(s.address))} ${Store.CREDIT.unit}</span></div>
+            <div class="kv mono"><span class="k">交易哈希</span><span class="v" style="font-size:11.4px">${App.fmt.addr(tx.hash,12)}</span></div>
+            <div class="hint mt-16">该授权仅限个人欣赏使用，不得用于任何商业场景。</div>`,
+          buttons:[
+            {text:'查看我的授权', cls:'btn-primary', onClick:()=>location.href='dashboard.html'},
+            {text:'继续浏览', cls:'btn-ghost', onClick:()=>location.reload()}
+          ]
+        });
+      });
+    return;
+  }
+  App.confirm('确认交易', `
+    <div class="card" style="padding:14px;margin-bottom:14px">
+      <div class="row between mb-8"><span class="dim">作品</span><b>${App.esc(w.title)}</b></div>
+      <div class="row between mb-8"><span class="dim">授权范围</span><b>${Store.LICENSE_MAP[buyScope].label}</b></div>
+      <div class="row between mb-8"><span class="dim">期限</span><b>${buyScope==='exclusive'?'永久买断':(Number(document.getElementById('buyPeriod').value)||'永久')+' 年'}</b></div>
+      <div class="row between"><span class="dim">支付账户</span><span class="mono" style="font-size:12px">${App.fmt.addr(s.address,6)}</span></div>
+    </div>
+    <div class="kv"><span class="k">授权费</span><span class="v">${App.fmt.eth(p)} ETH</span></div>
+    <div class="kv"><span class="k">服务费</span><span class="v">${App.fmt.eth(fee)} ETH</span></div>
+    <div class="kv"><span class="k">Gas</span><span class="v">${gas} ETH</span></div>
+    <div class="kv"><span class="k" style="color:var(--text);font-weight:700">合计支付</span><span class="v" style="font-weight:800">${App.fmt.eth(total)} ETH</span></div>`,
+    '确认支付', async ()=>{
+      App.modal({title:'交易处理中', body:`
+        <div class="tx-step"><div class="tx-ico run">⏳</div><div><div>锁定资金至 escrow 合约</div><div class="mute" style="font-size:12px">等待钱包签名…</div></div></div>
+        <div class="tx-step"><div class="tx-ico">2</div><div>校验权属并 ${buyScope==='exclusive'?'转移 Ownership':'铸造 License NFT'}</div></div>
+        <div class="tx-step"><div class="tx-ico">3</div><div>分配版税并完成结算</div></div>`, buttons:[]});
+      await new Promise(r=>setTimeout(r, 1500));
+      const tx = await Web3.sendTx(buyScope==='exclusive' ? 'transferCopyright' : 'grantLicense', {tokenId:w.tokenId, value:total});
+
+      const order = {
+        id: 'o_' + Date.now(),
+        workId: w.id, workTitle: w.title,
+        type: buyScope==='exclusive' ? 'transfer' : 'license',
+        scope: buyScope,
+        period: buyScope==='exclusive' ? 0 : Number(document.getElementById('buyPeriod').value),
+        amount: p, fee,
+        buyer: s.address, buyerName: s.name,
+        seller: w.owner, sellerName: w.ownerName,
+        txHash: tx.hash, status:'success', createdAt:new Date().toISOString(),
+      };
+      Store.addOrder(order);
+
+      if(buyScope === 'exclusive'){
+        /* 买断：转移所有权 → 退出市场 → 存入买家版权仓库，由买家修改后自主上架 */
+        Store.updateWork(w.id, {
+          owner: s.address, ownerName: s.name,
+          prevOwner: w.owner, prevOwnerName: w.ownerName,
+          resale: true,
+          transferCount: (w.transferCount || 0) + 1,
+          status: 'owned',          // 仓库持有中，市场不再展示
+          listedAt: null,
+        });
+      } else {
+        Store.addLicense({
+          id: 'l_' + Date.now(), workId:w.id, workTitle:w.title,
+          licensee: s.address, licenseeName: s.name, scope: buyScope,
+          period: Number(document.getElementById('buyPeriod').value),
+          price: p, txHash: tx.hash, createdAt:new Date().toISOString(),
+          expiresAt: Number(document.getElementById('buyPeriod').value)
+            ? new Date(Date.now() + Number(document.getElementById('buyPeriod').value)*365*864e5).toISOString() : null,
+          status:'active'
+        });
+        Store.updateWork(w.id, {licenseCount: (w.licenseCount||0)+1});
+      }
+
+      App.closeModal();
+      App.modal({
+        title:'🎉 交易成功',
+        body:`<p class="dim" style="margin:0 0 14px">${buyScope==='exclusive'
+          ? '你已成为《'+App.esc(w.title)+'》的新所有权人，版权凭证 NFT 已发送至你的钱包。该作品已退出市场并存入「我的版权 → 版权仓库」，是否重新上架由你决定：可先修改作品信息与价格，再自主上架。'
+          : '《'+App.esc(w.title)+'》的 '+Store.LICENSE_MAP[buyScope].label+' 凭证已铸造完成，可在「我的授权」中查看。'}</p>
+          <div class="kv mono"><span class="k">交易哈希</span><span class="v" style="font-size:11.4px">${App.fmt.addr(tx.hash,12)}</span></div>
+          <div class="kv"><span class="k">区块高度</span><span class="v">#${App.fmt.num(tx.block)}</span></div>
+          <div class="kv"><span class="k">实付金额</span><span class="v">${App.fmt.eth(total)} ETH</span></div>
+          <div class="row mt-16" style="gap:8px">
+            <button class="btn btn-sm btn-outline" onclick="App.copy('${tx.hash}')">复制哈希</button>
+            <a class="btn btn-sm btn-ghost" href="${Store.settings().explorer}/tx/${tx.hash}" target="_blank" rel="noopener">浏览器查看 ↗</a>
+          </div>`,
+        buttons:[
+          {text:'查看我的授权', cls:'btn-primary', onClick:()=>location.href='dashboard.html'},
+          {text:'继续浏览', cls:'btn-ghost', onClick:()=>location.reload()}
+        ]
+      });
+    });
+}
+</script>
+</body>
+</html>

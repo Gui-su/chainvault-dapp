@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChainVault · 数字版权保护与交易平台</title>
+<meta name="description" content="ChainVault 是基于区块链的数字版权确权、授权与交易 DApp，覆盖数字艺术、音乐与文学作品。">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+
+<div id="modeBar"></div>
+<header class="nav" data-nav></header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="up-in">
+      <span class="eyebrow"><i class="dot"></i> Ethereum Sepolia · 合约已部署并开源验证</span>
+      <h1 class="big">数字作品版权<br><em>确权 · 授权 · 交易</em> 一站式平台</h1>
+      <p class="lead">
+        面向数字艺术、音乐与文学作品，提供权属登记、授权管理与版权流转服务。作品登记后生成哈希摘要并写入区块链，
+        授权范围与期限由合约执行，成交后自动完成结算与凭证交付。
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="pages/create.html">登记作品版权</a>
+        <a class="btn btn-lg" href="pages/works.html">浏览版权市场 →</a>
+      </div>
+      <div class="hero-stats" id="heroStats"></div>
+    </div>
+
+    <div class="hero-art">
+      <div class="float-card c1">
+        <div class="row between mb-16">
+          <span class="seal">⛓️</span>
+          <span class="badge ok">已上链</span>
+        </div>
+        <div style="font-weight:700;font-size:15px">《赛博敦煌 · 飞天 No.3》</div>
+        <div class="dim" style="font-size:12.5px;margin:3px 0 12px">数字艺术品 · 陈星野</div>
+        <div class="hash-line mono">SHA-256 ｜ 0x9f2c4a7b…d83e1f5c<br>Block #21,478,301 ｜ Gas 0.00084</div>
+        <div class="row between mt-16" style="font-size:12.5px">
+          <span class="mute">Token ID #1001</span><span style="font-weight:700">2.85 ETH</span>
+        </div>
+      </div>
+      <div class="float-card c2">
+        <div class="row between mb-16">
+          <span class="seal">📄</span>
+          <span class="badge cyan">授权凭证</span>
+        </div>
+        <div style="font-weight:700;font-size:14.5px">商用授权 · 星潮传媒</div>
+        <div class="dim" style="font-size:12.5px;margin:3px 0 12px">有效期 3 年 · 自动分账</div>
+        <div class="bar"><i style="width:72%"></i></div>
+        <div class="row between mt-8 mute" style="font-size:11.5px">
+          <span class="mute">版税 5%</span><span class="up">+0.142 ETH 累计</span>
+        </div>
+      </div>
+      <div class="float-card c3">
+        <div class="row between">
+          <div class="row" style="gap:10px">
+            <span class="avatar" style="background:linear-gradient(135deg,#2563eb,#4338ca)">苏</span>
+            <div><div style="font-size:13.5px;font-weight:700">苏未然</div><div class="mute" style="font-size:11.5px">文学作品作者</div></div>
+          </div>
+          <span class="badge info">正在确权</span>
+        </div>
+        <div class="hash-line mono mt-16">写入中… ⛽ Gas 12.4 Gwei<br>预计确认 ~14 秒</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 核心能力 ============ -->
+<section class="section">
+  <div class="container">
+    <div class="section-head center" style="margin:0 auto 40px">
+      <div class="kicker">Core Capabilities</div>
+      <h2>四大能力，覆盖版权全生命周期</h2>
+      <p>从创作完成的第一秒到后续每一次流转，ChainVault 用智能合约替代中间人的信任成本。</p>
+    </div>
+    <div class="grid g-4">
+      <div class="feature card-hover">
+        <div class="f-icon">🛡️</div>
+        <h3>一键确权存证</h3>
+        <p>本地生成作品 SHA-256 指纹，仅哈希上链，原件不出本地。秒级生成不可篡改的时间戳凭证，可作为司法取证依据。</p>
+      </div>
+      <div class="feature card-hover">
+        <div class="f-icon">📜</div>
+        <h3>链上授权管理</h3>
+        <p>个人欣赏、商用、改编、独家买断四类授权模板，期限与范围写入合约，到期自动失效，杜绝超范围使用。</p>
+      </div>
+      <div class="feature card-hover">
+        <div class="f-icon">💱</div>
+        <h3>版权交易流转</h3>
+        <p>所有权转让与使用权授权双通道，资金托管 + 原子交割，保证「付款即确权、交付即可查」。</p>
+      </div>
+      <div class="feature card-hover">
+        <div class="f-icon">💰</div>
+        <h3>版税自动分账</h3>
+        <p>创作者可设置二次流转版税率（默认 5%），每次成交收益由合约自动分配，永不错过作品增值红利。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 流程 ============ -->
+<section class="section" style="padding-top:10px">
+  <div class="container">
+    <div class="section-head">
+      <div class="kicker">How It Works</div>
+      <h2>作品登记与上链流程</h2>
+      <p>按常规上传流程操作即可，系统在后台完成哈希计算、元数据分发与合约调用。</p>
+    </div>
+    <div class="grid g-2" style="gap:34px;align-items:center">
+      <div class="timeline">
+        <div class="tl-item"><h4>1 · 上传作品并生成数字指纹</h4><p>选择文件后浏览器本地计算 SHA-256，同时剥离元数据并写入创作者钱包地址。</p></div>
+        <div class="tl-item"><h4>2 · 提交确权交易，等待打包</h4><p>系统调用 CopyrightRegistry 合约的 registerWork 方法，约 14 秒完成区块确认。</p></div>
+        <div class="tl-item"><h4>3 · 定价并选择授权方式</h4><p>设置售价、授权类型、期限与可否二次改编，规则一经上链不可单方面修改。</p></div>
+        <div class="tl-item"><h4>4 · 成交结算，版权自动转移</h4><p>买方支付后合约同步交割 Ownership 或 License NFT，收益实时到账，可在链上查验。</p></div>
+      </div>
+      <div class="card glow">
+        <div class="row between mb-16">
+          <b style="font-size:15px">CopyrightRegistry.sol</b>
+          <span class="badge ok">Audit Passed</span>
+        </div>
+        <pre class="mono" style="font-size:11.6px;line-height:1.75;color:#1d4ed8;margin:0;white-space:pre-wrap" id="solSnippet"></pre>
+        <div class="row mt-16" style="gap:10px">
+          <a class="btn btn-sm btn-outline" href="#" onclick="App.copy(Web3.CONTRACT_SOL,'合约源码已复制');return false">📋 复制合约源码</a>
+          <a class="btn btn-sm btn-ghost" href="pages/create.html">体验确权 →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 精选 ============ -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head row between">
+      <div>
+        <div class="kicker">Featured Works</div>
+        <h2 style="margin-bottom:0">精选已上链作品</h2>
+      </div>
+      <a class="btn btn-outline" href="pages/works.html">查看全部作品 →</a>
+    </div>
+    <div class="grid g-auto" id="featured"></div>
+  </div>
+</section>
+
+<!-- ============ 技术架构 ============ -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head center" style="margin:0 auto 36px">
+      <div class="kicker">Architecture</div>
+      <h2>链上链下协同的技术架构</h2>
+      <p>敏感原件与超大文件留在本地或 IPFS，链上只存储不可篡改的权属与交易凭证。</p>
+    </div>
+    <div class="grid g-3">
+      <div class="card">
+        <div style="font-size:26px">📦</div>
+        <h4 style="margin:10px 0 6px">内容层 · 原件与元数据</h4>
+        <p class="dim" style="font-size:13.6px;margin:0">作品原文件经 AES 加密后分发至 IPFS，仅 CID 与哈希摘要进入公开网络，兼顾可用性与隐私。</p>
+      </div>
+      <div class="card">
+        <div style="font-size:26px">⛓️</div>
+        <h4 style="margin:10px 0 6px">合约层 · 权属与结算</h4>
+        <p class="dim" style="font-size:13.6px;margin:0">ERC-721 版权凭证 + ERC-2981 版税标准，4 个核心方法完成注册、转移、授权与核验。</p>
+      </div>
+      <div class="card">
+        <div style="font-size:26px">🗄️</div>
+        <h4 style="margin:10px 0 6px">索引层 · 检索与运营</h4>
+        <p class="dim" style="font-size:13.6px;margin:0">监听区块事件构建离线索引，为市场检索、作品审核、数据统计与维权举证提供查询能力。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="section-head"><div class="kicker">FAQ</div><h2>常见问题</h2></div>
+    <div class="grid g-2" id="faq"></div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="container">
+  <div class="card glow center" style="padding:52px 26px">
+    <h2 style="margin:0 0 10px;font-size:30px">登记你的作品版权</h2>
+    <p class="dim" style="margin:0 auto 24px;max-width:560px">首笔登记由平台补贴 Gas 费用，约 30 秒生成可在区块浏览器查验的版权凭证。</p>
+    <div class="row" style="justify-content:center;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-primary btn-lg" href="pages/create.html">立即登记</a>
+      <a class="btn btn-lg" href="pages/login.html">连接钱包登录</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/web3.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+App.mountNav('home');
+
+/* 演示模式提示条 */
+(function(){
+  const s = App.session();
+  const bar = document.getElementById('modeBar');
+  if (!s || s.walletMode !== 'wallet') {
+    bar.innerHTML = `<div class="demo-bar">🧪 当前处于<b>演示模式</b>：未检测到浏览器钱包时，系统使用本地演示地址模拟上链交易。安装 MetaMask 后即可体验真实签名。
+      <a href="pages/login.html" style="color:#1d4ed8;text-decoration:underline">连接钱包</a></div>`;
+  }
+})();
+
+/* 合约片段 */
+document.getElementById('solSnippet').textContent = Web3.CONTRACT_SOL.split('\n').slice(10, 34).join('\n');
+
+/* 统计 */
+(function(){
+  document.getElementById('heroStats').innerHTML = [
+    {b:'< 30s', s:'确权上链耗时'},
+    {b:'0 元', s:'首笔存证 Gas'},
+    {b:'5%', s:'默认版税比例'},
+    {b:'99.98%', s:'合约可用性'}
+  ].map(x=>`<div><b>${x.b}</b><span>${x.s}</span></div>`).join('');
+})();
+
+/* 精选作品 */
+(function(){
+  const list = Store.works().filter(w=>w.status==='approved').slice(0,4);
+  document.getElementById('featured').innerHTML = list.map(App.workCard).join('');
+})();
+
+/* FAQ */
+(function(){
+  const items = [
+    ['确权后作品文件会被公开吗？','不会。上传的文件仅在浏览器本地计算哈希，原件可保留在你自己的设备或私有 IPFS 网关。链上只记录哈希摘要、时间戳与创作者地址，任何人都能验证归属，但无法反推出作品内容。'],
+    ['链上凭证有法律效力吗？','区块链存证已被多地司法机关采纳为电子证据。平台同时提供可下载的存证证书（含区块高度、交易哈希、时间戳），配合公证处出具的取证函可形成完整证据链。'],
+    ['买家拿到的是所有权还是使用权？','取决于授权类型：选择「独家买断」时合约转移 Ownership，买家成为新的所有权人；其余三类为 License NFT，仅授予约定范围与期限内的使用权，到期后需续约。'],
+    ['版税如何结算？','遵循 ERC-2981 标准，每次二次流转成交时的约定比例自动划转至创作者地址，平台不经过资金池，结算与交割在同一笔交易内原子完成。'],
+    ['没有虚拟货币可以尝试吗？','可以。未安装钱包时可使用演示钱包完整体验确权、授权、 purchase 与管理的全流程；连接真实钱包后即可签署真实交易。'],
+    ['发现侵权该如何维权？','进入作品详情页「维权举证」，系统自动生包含原始哈希、首次存证时间与链上流转记录的取证包，可一键提交至合作的互联网法院存证平台。']
+  ];
+  document.getElementById('faq').innerHTML = items.map(([q,a])=>
+    `<div class="card"><h4 style="margin:0 0 8px;font-size:15.5px">${q}</h4><p class="dim" style="margin:0;font-size:13.8px">${a}</p></div>`).join('');
+})();
+</script>
+</body>
+</html>

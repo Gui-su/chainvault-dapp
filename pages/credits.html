@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>积分中心 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<section class="container" style="padding:32px 24px 60px">
+  <div class="crumb"><a href="../index.html">首页</a> / 积分中心</div>
+  <div class="row between wrap mb-24">
+    <div>
+      <h1 style="margin:0 0 4px;font-size:28px">积分中心</h1>
+      <p class="dim" style="margin:0">积分（${'<span id="unitName"></span>' || 'CV'}）仅可用于兑换作品的「个人欣赏授权」，不能提现或转让。</p>
+    </div>
+    <a class="btn" href="works.html">去市场使用积分 →</a>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 340px;gap:20px;align-items:start">
+    <div class="col">
+      <!-- 余额卡 -->
+      <div class="card glow">
+        <div class="row between wrap">
+          <div>
+            <div class="mute" style="font-size:12.5px">我的积分余额</div>
+            <div style="font-size:38px;font-weight:800;letter-spacing:-.6px" id="balance">0</div>
+            <div class="hint">≈ <span id="balEth">0</span> ETH · 1 ETH = <span id="rate"></span> 积分</div>
+          </div>
+          <div class="row" style="gap:10px">
+            <button class="btn btn-primary btn-lg" id="btnSign">📅 每日签到</button>
+            <button class="btn btn-lg" id="btnBuy">💱 ETH 兑换积分</button>
+          </div>
+        </div>
+        <div class="row mt-16" style="gap:10px;flex-wrap:wrap">
+          <span class="badge" id="signState">—</span>
+          <span class="badge cyan" id="likeState">—</span>
+          <span class="badge info">积分仅可用于个人欣赏授权</span>
+        </div>
+      </div>
+
+      <!-- 赚积分 -->
+      <div class="card">
+        <b class="mb-16">如何获得积分</b>
+        <div class="col" style="gap:10px">
+          <div class="row between" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+            <div><div style="font-weight:600;font-size:14px">📅 每日签到</div><div class="hint">连续签到奖励递增，最高 ${'50'} 积分/天</div></div>
+            <div style="text-align:right"><b style="color:var(--green)">+20 起</b><div class="hint">每日 1 次</div></div>
+          </div>
+          <div class="row between" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+            <div><div style="font-weight:600;font-size:14px">👍 点赞作品</div><div class="hint">在作品详情页点赞</div></div>
+            <div style="text-align:right"><b style="color:var(--green)">+2</b><div class="hint">每日 5 次</div></div>
+          </div>
+          <div class="row between" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+            <div><div style="font-weight:600;font-size:14px">♡ 收藏作品</div><div class="hint">每件作品首次收藏</div></div>
+            <div style="text-align:right"><b style="color:var(--green)">+5</b><div class="hint">每作品限 1 次</div></div>
+          </div>
+          <div class="row between" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+            <div><div style="font-weight:600;font-size:14px">💱 ETH 兑换</div><div class="hint">按实时比例即时到账</div></div>
+            <div style="text-align:right"><b style="color:var(--green)">+<span id="perEth"></span></b><div class="hint">每 1 ETH</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 流水 -->
+      <div class="card">
+        <div class="row between mb-16">
+          <b>积分流水</b>
+          <span class="hint">仅显示最近 60 条</span>
+        </div>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <!-- 侧栏说明 -->
+    <div class="col">
+      <div class="card">
+        <b class="mb-16">积分使用规则</b>
+        <div class="col" style="gap:8px;font-size:13.4px;color:var(--text-dim)">
+          <div class="row" style="gap:8px"><span class="badge cyan">1</span><span>仅可用于购买作者开放了「个人欣赏授权」的作品</span></div>
+          <div class="row" style="gap:8px"><span class="badge cyan">2</span><span>该授权所需积分数由作者在上架时自行设定</span></div>
+          <div class="row" style="gap:8px"><span class="badge cyan">3</span><span>商用、改编、独家买断仍需使用 ETH 支付</span></div>
+          <div class="row" style="gap:8px"><span class="badge cyan">4</span><span>积分不可提现、不可转账、不可逆向兑换 ETH</span></div>
+          <div class="row" style="gap:8px"><span class="badge cyan">5</span><span>兑换成功后授权即刻生效，凭证写入你的钱包</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <b class="mb-16">可用积分的作品</b>
+        <div id="usable" class="col" style="gap:10px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('credits');
+const sess = App.requirePageLogin();
+if (sess) boot(sess);
+
+function boot(sess){
+  const C = Store.CREDIT;
+  const me = sess.address;
+
+  document.getElementById('unitName').textContent = C.unit;
+  document.getElementById('rate').textContent = App.fmt.num(C.rate);
+  document.getElementById('perEth').textContent = App.fmt.num(C.rate);
+
+  function render(){
+    const bal = Store.creditsOf(me);
+    document.getElementById('balance').textContent = App.fmt.num(bal);
+    document.getElementById('balEth').textContent = (bal / C.rate).toFixed(4);
+
+    const sign = Store.signInfo(me);
+    const sEl = document.getElementById('signState');
+    sEl.className = 'badge ' + (sign.signed ? 'ok' : 'warn');
+    sEl.textContent = sign.signed
+      ? '今日已签到 · 连续 ' + sign.streak + ' 天'
+      : '今日未签到 · 连续 ' + (sign.streak||0) + ' 天';
+    const btn = document.getElementById('btnSign');
+    btn.textContent = sign.signed ? '今日已签到' : '📅 签到领 ' + Math.min(C.signMax, C.signBase + (sign.streak||0) * C.signStep) + ' 积分';
+    btn.disabled = sign.signed;
+
+    const left = Store.likeLeft(me);
+    document.getElementById('likeState').textContent = '今日点赞奖励剩 ' + left + ' 次（+' + C.like + '/次）';
+
+    /* 流水 */
+    const logs = Store.creditLog(me).slice(0, 60);
+    const typeMap = {
+      sign:{t:'每日签到', i:'📅'}, like:{t:'点赞作品', i:'👍'}, fav:{t:'收藏作品', i:'♡'},
+      buy:{t:'ETH 兑换', i:'💱'}, spend:{t:'积分消费', i:'🎟️'}, admin:{t:'平台调整', i:'⚙️'}
+    };
+    document.getElementById('log').innerHTML = logs.length ? `<div class="table-wrap"><table class="tb" style="min-width:0">
+      <thead><tr><th>时间</th><th>事项</th><th>说明</th><th style="text-align:right">变动</th></tr></thead>
+      <tbody>${logs.map(l=>{
+        const m = typeMap[l.type] || {t:'其他', i:'•'};
+        return `<tr>
+          <td>${App.fmt.dateTime(l.at)}</td>
+          <td>${m.i} ${m.t}</td>
+          <td class="dim">${App.esc(l.note || '—')}</td>
+          <td style="text-align:right;font-weight:700" class="${l.amount>=0?'up':'down'}">${l.amount>=0?'+':''}${App.fmt.num(l.amount)}</td>
+        </tr>`;}).join('')}</tbody></table></div>`
+      : `<div class="empty" style="padding:26px 0"><div class="ico">🪙</div><p>还没有积分记录，先去签到领取吧</p></div>`;
+
+    /* 可用积分的作品 */
+    const usable = Store.works().filter(w =>
+      w.status === 'approved' && App.licenseTypesOf(w).indexOf('personal') >= 0).slice(0, 5);
+    document.getElementById('usable').innerHTML = usable.length ? usable.map(w=>`
+      <a class="row" href="detail.html?id=${encodeURIComponent(w.id)}" style="gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;transition:.15s">
+        <div class="cover ${Store.TYPE_MAP[w.type].color}" style="width:42px;height:42px;border-radius:8px;flex:none">
+          <div class="glyph" style="font-size:18px">${Store.TYPE_MAP[w.type].icon}</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="truncate" style="font-size:13.5px;font-weight:600">${App.esc(w.title)}</div>
+          <div class="hint">${App.fmt.num(w.personalCredits||0)} ${C.unit}</div>
+        </div>
+        <span class="badge ${Store.creditsOf(me) >= (w.personalCredits||0) ? 'ok' : 'warn'}">${Store.creditsOf(me) >= (w.personalCredits||0) ? '可兑换' : '差 ' + App.fmt.num((w.personalCredits||0) - Store.creditsOf(me))}</span>
+      </a>`).join('')
+      : `<div class="hint">暂无开放积分授权的作品</div>`;
+  }
+
+  document.getElementById('btnSign').onclick = ()=>{
+    const r = Store.signIn(me);
+    if (!r.ok) return App.toast(r.reason, 'warn');
+    App.toast('签到成功 · 连续 ' + r.streak + ' 天，获得 ' + r.amount + ' ' + C.unit + ' 积分', 'ok', '每日签到');
+    render();
+    App.refreshMsg && App.refreshMsg();
+  };
+
+  document.getElementById('btnBuy').onclick = ()=>{
+    App.modal({
+      title:'💱 ETH 兑换积分',
+      body:`
+        <div class="card mb-16" style="padding:12px 14px;background:var(--brand-soft);border-color:#cfdefd">
+          <div class="row between"><span style="font-size:12.5px">兑换比例</span><b>1 ETH = ${App.fmt.num(C.rate)} ${C.unit}</b></div>
+          <div class="hint mt-8">当前余额：${App.fmt.num(Store.creditsOf(me))} ${C.unit}</div>
+        </div>
+        <div class="field"><label class="label">兑换数量（ETH）</label>
+          <input class="input" id="ethAmt" type="number" min="${C.minEth}" step="0.001" value="0.01">
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          ${[0.001, 0.01, 0.05, 0.1].map(v=>`<button class="btn btn-sm btn-outline" data-eth="${v}">${v} ETH</button>`).join('')}
+        </div>
+        <div class="hint mt-16">预计获得：<b id="willGet">${App.fmt.num(C.rate * 0.01)}</b> ${C.unit}（演示环境不产生真实转账）</div>`,
+      buttons:[
+        {text:'取消', cls:'btn-ghost'},
+        {text:'确认兑换', cls:'btn-primary', onClick:()=>{
+          const eth = Number(document.getElementById('ethAmt').value);
+          if (!eth || eth < C.minEth) return App.toast('最小兑换 ' + C.minEth + ' ETH','err');
+          const r = Store.buyCredits(me, eth, 'ETH 兑换（演示）');
+          if (!r.ok) return App.toast(r.reason,'err');
+          App.toast('兑换成功 · 到账 ' + App.fmt.num(r.amount) + ' ' + C.unit,'ok');
+          render();
+        }}
+      ]
+    });
+    const inp = document.getElementById('ethAmt');
+    const upd = ()=>{ const v = Number(inp.value)||0; document.getElementById('willGet').textContent = App.fmt.num(Math.round(v * C.rate)); };
+    inp.addEventListener('input', upd);
+    document.querySelectorAll('[data-eth]').forEach(b=>{
+      b.onclick = ()=>{ inp.value = b.dataset.eth; upd(); };
+    });
+  };
+
+  render();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# 本地开发环境
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+node_modules/
+.vscode/
+.idea/
+
+# 含账号密码，不要上传（本地自己留着用）
+测试账号.txt
+
+# 临时/调试文件
+_debug.html
+_dump.html
+_check.js
+_smoke.js
+_verify.js
+_*.js

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>作品确权 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<style>
+  .steps{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--text-mute);flex-wrap:wrap}
+  .steps i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#fafbfc;font-style:normal;font-size:12px}
+  .steps .on i{background:var(--grad);color:#fff}
+  .steps .on{color:var(--text)}
+  .tx-step{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px dashed var(--line-soft)}
+  .tx-step:last-child{border:none}
+  .tx-ico{width:26px;height:26px;flex:none;display:grid;place-items:center;font-size:14px;border-radius:9px;background:#fafbfc}
+  .tx-ico.ok{background:rgba(5,150,105,.18)}
+  .tx-ico.run{background:rgba(37,99,235,.2);animation:pulse 1s infinite}
+</style>
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<section class="container" style="padding:38px 24px 60px">
+  <div class="crumb"><a href="../index.html">首页</a> / 作品确权</div>
+  <div class="row between wrap mb-24">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:34px">作品确权登记</h1>
+      <p class="dim" style="margin:0">文件不会离开你的设备：系统在浏览器本地计算哈希，仅将摘要写入区块链。</p>
+    </div>
+    <div class="steps" id="steps">
+      <span class="on" data-s="1"><i>1</i> 上传文件</span><span>›</span>
+      <span data-s="2"><i>2</i> 填写信息</span><span>›</span>
+      <span data-s="3"><i>3</i> 设置授权</span><span>›</span>
+      <span data-s="4"><i>4</i> 上链存证</span>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1.25fr .75fr;gap:26px;align-items:start">
+    <!-- 表单 -->
+    <div class="card">
+      <h3 style="margin:0 0 4px;font-size:18px">① 选择作品文件</h3>
+      <p class="hint mb-16">支持 PNG / JPG / MP3 / WAV / PDF / DOCX 等格式，单个文件建议不超过 200MB。</p>
+      <div class="drop" id="drop">
+        <div class="ico">📁</div>
+        <div style="font-weight:600">拖拽文件到此处，或点击选择文件</div>
+        <div class="hint mt-8">文件仅在本地读取，不会上传服务器</div>
+        <input type="file" id="file" class="hidden">
+      </div>
+      <div id="fileInfo" class="hidden mt-16"></div>
+
+      <div class="field mt-16">
+        <label class="label">作品封面图 <span>可选 · 将在市场与详情页展示</span></label>
+        <div class="row" style="gap:14px;align-items:center;flex-wrap:wrap">
+          <div id="coverPrev" class="cover art" style="width:104px;height:78px;border-radius:12px;overflow:hidden;flex:none;display:grid;place-items:center">
+            <div class="glyph" style="font-size:26px">🎨</div>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div class="row" style="gap:8px">
+              <button class="btn btn-sm btn-outline" id="coverBtn" type="button">🖼 选择封面图片</button>
+              <button class="btn btn-sm btn-ghost hidden" id="coverClear" type="button">移除封面</button>
+            </div>
+            <div class="hint mt-8">支持 JPG / PNG / WebP，自动压缩至 720px 宽后随元数据上链展示；数字艺术品若不单独上传，将默认使用作品文件首图。</div>
+          </div>
+          <input type="file" id="coverFile" accept="image/*" class="hidden">
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line-soft);margin:26px 0">
+
+      <h3 style="margin:0 0 4px;font-size:18px">② 作品信息</h3>
+      <p class="hint mb-16">这些信息将与哈希一同写入元数据并同步至 IPFS。</p>
+      <div class="field">
+        <label class="label">作品名称 <span>必填</span></label>
+        <input class="input" id="title" placeholder="例：赛博敦煌 · 飞天 No.3">
+      </div>
+      <div class="field">
+        <label class="label">作品品类</label>
+        <select class="select" id="type">
+          <option value="art">🎨 数字艺术品</option>
+          <option value="music">🎵 音乐作品</option>
+          <option value="literature">✍️ 文学作品</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="label">作品简介 <span>建议 30-200 字</span></label>
+        <textarea class="textarea" id="desc" placeholder="描述创作背景、交付物格式、使用场景等，有助于提升成交率"></textarea>
+      </div>
+      <div class="field">
+        <label class="label">标签 <span>逗号分隔，最多 5 个</span></label>
+        <input class="input" id="tags" placeholder="国潮, 赛博朋克, 3D">
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line-soft);margin:26px 0">
+
+      <h3 style="margin:0 0 4px;font-size:18px">③ 授权与定价</h3>
+      <p class="hint mb-16">授权规则一旦上链不可单方面修改，请谨慎选择。</p>
+      <div class="field">
+        <label class="label">可授权方式 <span>可多选 · 至少选 1 项</span></label>
+        <div class="radio-cards" id="licPick"></div>
+        <div class="hint">未勾选的授权方式不会在市场上展示，买家也无法选择。</div>
+      </div>
+      <div class="field hidden" id="creditField">
+        <label class="label">个人欣赏授权所需积分 <span id="creditCny"></span></label>
+        <input class="input" id="credits" type="number" min="10" step="10" value="800">
+        <div class="hint">积分仅可用于兑换「个人欣赏授权」；1 ETH = ${Store.CREDIT.rate} 积分（${Store.CREDIT.unit}）。买家可通过签到、点赞、收藏免费获得，也可用 ETH 购买。</div>
+      </div>
+      <div class="grid g-2" style="gap:14px">
+        <div class="field">
+          <label class="label">ETH 售价（非积分授权）</label>
+          <input class="input" id="price" type="number" min="0.001" step="0.001" value="0.5">
+        </div>
+        <div class="field">
+          <label class="label">二次流转版税率（%）</label>
+          <input class="input" id="royalty" type="number" min="0" max="30" step="1" value="5">
+        </div>
+      </div>
+      <div class="field">
+        <label class="label">授权期限</label>
+        <select class="select" id="period">
+          <option value="1">1 年</option>
+          <option value="3" selected>3 年</option>
+          <option value="5">5 年</option>
+          <option value="0">永久</option>
+        </select>
+      </div>
+      <div class="grid g-2" style="gap:14px">
+        <label class="switch"><input type="checkbox" id="allowDerivative"><span class="track"></span><span style="font-size:13.5px">允许二次创作改编</span></label>
+        <label class="switch"><input type="checkbox" id="needAudit" checked><span class="track"></span><span style="font-size:13.5px">申请平台原创性审核</span></label>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line-soft);margin:26px 0">
+
+      <label class="check mb-16"><input type="checkbox" id="declare"> 我声明该作品为本人原创，或已获得全部权利人的完整授权，并同意《ChainVault 版权存证协议》</label>
+      <button class="btn btn-primary btn-lg btn-block" id="submit">🛡️ 提交上链确权</button>
+      <p class="hint center mt-8" id="submitHint"></p>
+    </div>
+
+    <!-- 预览 -->
+    <div style="position:sticky;top:82px">
+      <div class="card glow">
+        <div class="row between mb-16">
+          <b>④ 存证预览</b>
+          <span class="badge info" id="modeTag">演示模式</span>
+        </div>
+        <div class="cover art" id="prevCover" style="height:150px;border-radius:14px">
+          <div class="glyph">🎨</div>
+        </div>
+        <h4 class="mt-16" id="prevTitle" style="margin:14px 0 2px;font-size:16px">未命名作品</h4>
+        <div class="dim" id="prevMeta" style="font-size:12.5px">尚未选择文件</div>
+
+        <div class="mt-16">
+          <div class="kv"><span class="k">上架售价</span><span class="v"><b id="prevPrice">0.500</b> ETH</span></div>
+          <div class="kv"><span class="k">授权方式</span><span class="v" id="prevLic">商用授权</span></div>
+          <div class="kv"><span class="k">版税率</span><span class="v" id="prevRoy">5%</span></div>
+          <div class="kv"><span class="k">当前网络</span><span class="v" id="prevNet">Ethereum Sepolia</span></div>
+          <div class="kv"><span class="k">预计 Gas</span><span class="v" id="prevGas">—</span></div>
+        </div>
+
+        <div class="card mt-16" style="padding:14px;background:#f7f8fa">
+          <div class="row between mb-8">
+            <span class="mute" style="font-size:11.5px">SHA-256 数字指纹</span>
+            <span class="badge" id="hashState">待计算</span>
+          </div>
+          <div class="mono" id="prevHash" style="font-size:11.2px;line-height:1.7;color:#1d4ed8;word-break:break-all">
+            0x0000000000000000000000000000000000000000000000000000000000000000
+          </div>
+        </div>
+
+        <div class="hint mt-16" id="gasTip"></div>
+      </div>
+
+      <div class="card mt-16">
+        <b style="font-size:14px">确权后你将获得</b>
+        <div class="col mt-16" style="gap:10px;font-size:13.4px">
+          <div class="row" style="gap:9px"><span class="badge ok">✓</span><span class="dim">链上版税收益权与凭证 NFT</span></div>
+          <div class="row" style="gap:9px"><span class="badge ok">✓</span><span class="dim">可下载的司法存证证书 PDF</span></div>
+          <div class="row" style="gap:9px"><span class="badge ok">✓</span><span class="dim">侵权监测与一键取证通道</span></div>
+          <div class="row" style="gap:9px"><span class="badge ok">✓</span><span class="dim">平台首页精选位推荐机会</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('create');
+
+/* 非 HTTPS 环境下浏览器禁用 Web Crypto，提前告知用户会降级 */
+if (!window.isSecureContext) {
+  App.toast('当前页面不是 HTTPS（安全上下文），浏览器禁用了 Web Crypto，SHA-256 将改用降级算法。请通过 https:// 或 localhost 访问以获得真实指纹。', 'warn', '环境提示', 9000);
+}
+
+const s0 = App.session();
+document.getElementById('submitHint').textContent = s0 ? '当前账号：' + App.fmt.addr(s0.address,6) + ' · 首笔存证 Gas 由平台补贴'
+  : '提示：提交前需要连接钱包或登录账号';
+document.getElementById('modeTag').className = 'badge ' + ((s0 && s0.walletMode==='wallet') ? 'ok' : 'cyan');
+document.getElementById('modeTag').textContent = (s0 && s0.walletMode==='wallet') ? '链上钱包' : '演示模式';
+document.getElementById('prevNet').textContent = Web3.chainLabel();
+
+/* ---------- 授权方式（多选，至少 1 项） ---------- */
+let licTypes = ['commercial', 'personal'];
+function renderLic(){
+  document.getElementById('licPick').innerHTML = Object.keys(Store.LICENSE_MAP).map(k=>{
+    const m = Store.LICENSE_MAP[k];
+    const on = licTypes.indexOf(k) >= 0;
+    return `<div class="radio-card ${on?'on':''}" data-k="${k}">
+      <div class="row between">
+        <b>${m.label}${k==='personal' ? ' <span class="badge cyan" style="font-size:11px">可用积分</span>' : ''}</b>
+        <span style="font-size:12px">${on ? '✓ 已选' : '未选'}</span>
+      </div>
+      <span>${m.desc}</span></div>`;
+  }).join('');
+  document.querySelectorAll('#licPick .radio-card').forEach(c=>{
+    c.onclick = ()=>{
+      const k = c.dataset.k;
+      const i = licTypes.indexOf(k);
+      if (i >= 0) {
+        if (licTypes.length === 1) return App.toast('至少需要保留 1 种授权方式','err');
+        licTypes.splice(i, 1);
+      } else licTypes.push(k);
+      renderLic(); syncPreview();
+    };
+  });
+  const cf = document.getElementById('creditField');
+  cf.classList.toggle('hidden', licTypes.indexOf('personal') < 0);
+  if (licTypes.indexOf('personal') >= 0) syncCredit();
+}
+function syncCredit(){
+  const n = Number(document.getElementById('credits').value) || 0;
+  const el = document.getElementById('creditCny');
+  if (el) el.textContent = '≈ ' + (n / Store.CREDIT.rate).toFixed(4) + ' ETH';
+}
+document.getElementById('credits').addEventListener('input', ()=>{ syncCredit(); syncPreview(); });
+renderLic();
+
+/* ---------- 封面图 ---------- */
+let coverData = null;
+function compressImage(file, maxW, q){
+  return new Promise(res=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          const scale = Math.min(1, maxW / img.width);
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          res(c.toDataURL('image/jpeg', q));
+        }catch(e){ console.warn('压缩失败', e); res(null); }
+      };
+      img.onerror = ()=>res(null);
+      img.src = reader.result;
+    };
+    reader.onerror = ()=>res(null);
+    reader.readAsDataURL(file);
+  });
+}
+function setCover(f){
+  if(!/^image\//.test(f.type)) return App.toast('封面仅支持图片文件（JPG/PNG/WebP）','err');
+  App.toast('正在压缩封面…','info');
+  compressImage(f, 720, 0.72).then(url=>{
+    if(!url) return App.toast('封面处理失败，请换一张图片','err');
+    coverData = url;
+    paintCover();
+    App.toast('封面已就绪，将在市场与详情页展示','ok');
+  });
+}
+function paintCover(){
+  const prev = document.getElementById('coverPrev');
+  const clear = document.getElementById('coverClear');
+  const glyph = prev.querySelector('.glyph');
+  if(coverData){
+    prev.style.backgroundImage = 'url(' + coverData + ')';
+    prev.style.backgroundSize = 'cover';
+    prev.style.backgroundPosition = 'center';
+    if(glyph) glyph.style.display = 'none';
+    clear.classList.remove('hidden');
+  } else {
+    prev.style.backgroundImage = '';
+    if(glyph){ glyph.style.display = ''; glyph.textContent = Store.TYPE_MAP[document.getElementById('type').value].icon; }
+    clear.classList.add('hidden');
+  }
+}
+document.getElementById('coverBtn').onclick = ()=>document.getElementById('coverFile').click();
+document.getElementById('coverFile').onchange = e=>{ const f = e.target.files[0]; if(f) setCover(f); };
+document.getElementById('coverClear').onclick = ()=>{ coverData = null; paintCover(); };
+
+/* ---------- 文件 & 哈希 ---------- */
+let file = null, fileHash = '0x' + '0'.repeat(64);
+
+const drop = document.getElementById('drop');
+drop.onclick = ()=>document.getElementById('file').click();
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev, e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) handleFile(f); });
+document.getElementById('file').onchange = e=>{ const f=e.target.files[0]; if(f) handleFile(f); };
+
+async function handleFile(f){
+  file = f;
+  const size = f.size > 1048576 ? (f.size/1048576).toFixed(2)+' MB' : (f.size/1024).toFixed(1)+' KB';
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  const guess = ['png','jpg','jpeg','gif','webp','psd'].includes(ext) ? 'art'
+              : ['mp3','wav','flac','aac','mid','midi'].includes(ext) ? 'music' : 'literature';
+  document.getElementById('type').value = guess;
+  document.getElementById('fileInfo').className = 'card mt-16';
+  document.getElementById('fileInfo').innerHTML = `
+    <div class="row between wrap">
+      <div class="row" style="gap:12px">
+        <span class="seal" style="width:42px;height:42px;font-size:19px">📄</span>
+        <div><div style="font-weight:600;font-size:14px">${App.esc(f.name)}</div>
+        <div class="mute" style="font-size:12px">${size} · ${ext.toUpperCase()} · 最后修改 ${App.fmt.date(new Date(f.lastModified).toISOString())}</div></div>
+      </div>
+      <span class="badge cyan" id="fstate">计算指纹中…</span>
+    </div>`;
+  if (!document.getElementById('title').value){
+    document.getElementById('title').value = f.name.replace(/\.[^.]+$/, '');
+    syncPreview();
+  }
+  /* 主文件为图片且未手动设置封面时，自动用作封面 */
+  if(/^image\//.test(f.type) && !coverData) setCover(f);
+  computeHash(f);
+}
+
+async function computeHash(f){
+  const st = document.getElementById('hashState');
+  st.textContent = '计算中…'; st.className='badge warn';
+  animateHash();
+  let hex = null;
+  try{
+    const buf = await f.arrayBuffer();
+    if (global.crypto && crypto.subtle){
+      const d = await crypto.subtle.digest('SHA-256', buf);
+      hex = Array.from(new Uint8Array(d)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  }catch(e){ console.warn('subtle 不可用', e); }
+  if(!hex){
+    let h=0x811c9dc5; const str = f.name + f.size + f.lastModified;
+    for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=(h*0x01000193)>>>0; }
+    let out=''; const seed='0123456789abcdef'; let num=h;
+    for(let i=0;i<64;i++){ out+=seed[(num+i*7)%16]; num=Math.floor(num/3)+i*31; }
+    hex = out;
+  }
+  stopHash();
+  fileHash = '0x' + hex;
+  document.getElementById('prevHash').textContent = fileHash;
+  st.textContent='已生成'; st.className='badge ok';
+  const fs = document.getElementById('fstate'); if(fs){ fs.textContent='✓ 指纹已生成'; fs.className='badge ok'; }
+  App.toast('SHA-256：' + fileHash.slice(0,22)+'…', 'ok', '作品数字指纹生成成功');
+  updateGas(); step(2); syncPreview();
+}
+
+let anim = null;
+function animateHash(){
+  stopHash();
+  anim = setInterval(()=>{
+    const el = document.getElementById('prevHash');
+    let s='0x'; const cs='0123456789abcdef';
+    for(let i=0;i<64;i++) s += cs[Math.floor(Math.random()*16)];
+    el.textContent = s;
+  }, 55);
+}
+function stopHash(){ if(anim){clearInterval(anim); anim=null;} }
+
+/* ---------- 预览同步 ---------- */
+const T = (id)=>document.getElementById(id);
+function syncPreview(){
+  const t = T('type').value, m = Store.TYPE_MAP[t];
+  const cover = T('prevCover');
+  cover.className = 'cover ' + m.color;
+  const glyph = cover.querySelector('.glyph');
+  if(coverData){
+    cover.style.backgroundImage = 'url(' + coverData + ')';
+    cover.style.backgroundSize = 'cover';
+    cover.style.backgroundPosition = 'center';
+    if(glyph) glyph.style.display = 'none';
+  } else {
+    cover.style.backgroundImage = '';
+    if(glyph) glyph.style.display = '';
+    cover.querySelector('.glyph').textContent = m.icon;
+  }
+  T('prevTitle').textContent = T('title').value.trim() || '未命名作品';
+  const fn = file ? file.name : '未选择文件';
+  T('prevMeta').textContent = `${m.icon} ${m.label} · ${fn}`;
+  T('prevPrice').textContent = licTypes.indexOf('personal') >= 0
+    ? App.fmt.num(Number(T('credits').value||0)) + ' ' + Store.CREDIT.unit + '（另 ' + Number(T('price').value||0).toFixed(3) + ' ETH 起）'
+    : Number(T('price').value||0).toFixed(3) + ' ETH';
+  T('prevLic').textContent = licTypes.map(k=>Store.LICENSE_MAP[k].label).join(' / ') + ' · ' +
+    (Number(T('period').value) ? Store.PERIODS.find(p=>p.value==Number(T('period').value)).label : '永久');
+  T('prevRoy').textContent = Number(T('royalty').value||0) + '%';
+}
+['title','type','desc','tags','price','royalty','period'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', syncPreview);
+  document.getElementById(id).addEventListener('change', syncPreview);
+});
+document.getElementById('type').addEventListener('change', paintCover);
+syncPreview();
+
+function updateGas(){
+  const c = Store.chain();
+  T('prevGas').textContent = (Math.random()*0.0012+0.0005).toFixed(6) + ' ETH ≈ ' + (c.gasPrice) + ' Gwei';
+  T('gasTip').textContent = '当前区块高度 #' + App.fmt.num(c.block) + '，预计 10-20 秒内完成确认。演示模式下不产生真实费用。';
+  T('prevNet').textContent = Web3.chainLabel();
+}
+updateGas();
+
+function step(n){
+  document.querySelectorAll('#steps span[data-s]').forEach(el=>{
+    el.classList.toggle('on', +el.dataset.s <= n);
+  });
+}
+step(1);
+
+/* ---------- 提交上链 ---------- */
+document.getElementById('submit').onclick = async function(){
+  const sess = App.session();
+  if(!sess) return App.requireLogin('create.html');
+  if(!file) return App.toast('请先选择要确权的作品文件','err');
+  const title = T('title').value.trim();
+  if(!title) return App.toast('请填写作品名称','err');
+  if(!T('desc').value.trim()) return App.toast('请填写作品简介，便于买家了解交付内容','err');
+  if(!T('declare').checked) return App.toast('请勾选原创声明后再提交','err');
+  if(Number(T('price').value) <= 0) return App.toast('售价必须大于 0','err');
+
+  const settings = Store.settings();
+  const needAudit = T('needAudit').checked;
+  step(4);
+
+  const steps = [
+    {label:'生成作品元数据并分发至 IPFS', ms:900},
+    {label:'构造 registerWork 交易数据', ms:700},
+    {label:'签名并向 CopyrightRegistry 合约发起交易', ms:1500},
+    {label:'等待区块确认', ms:1200},
+    {label:'写入版权凭证 NFT 至你的钱包', ms:800},
+  ];
+
+  App.modal({
+    title:'正在写入区块链',
+    body: `<div id="txList">${steps.map((s,i)=>`
+      <div class="tx-step" data-i="${i}">
+        <div class="tx-ico">${i+1}</div>
+        <div style="flex:1"><div style="font-size:13.6px">${s.label}</div>
+        <div class="mute mono" style="font-size:11.4px">待执行</div></div>
+      </div>`).join('')}</div>`,
+    buttons:[]
+  });
+
+  for(let i=0;i<steps.length;i++){
+    const row = document.querySelector(`.tx-step[data-i="${i}"]`);
+    row.querySelector('.tx-ico').className = 'tx-ico run';
+    row.querySelector('.mute').textContent = '执行中…';
+    await new Promise(r=>setTimeout(r, steps[i].ms));
+    row.querySelector('.tx-ico').className = 'tx-ico ok';
+    row.querySelector('.tx-ico').textContent = '✓';
+    row.querySelector('.mute').textContent = '已完成 · gas ' + (Math.random()*0.0004+0.00008).toFixed(6);
+  }
+
+  const tx = await Web3.sendTx('registerWork', {hash:fileHash, title, value:0});
+  const works = Store.works();
+  const newWork = {
+    id: 'w_' + (2000 + works.length),
+    title,
+    type: T('type').value,
+    desc: T('desc').value.trim(),
+    tags: T('tags').value.split(/[,，]/).map(x=>x.trim()).filter(Boolean).slice(0,5),
+    price: Number(T('price').value),
+    licenseType: licTypes[0],
+    licenseTypes: licTypes.slice(),
+    personalCredits: licTypes.indexOf('personal') >= 0 ? Number(T('credits').value) : null,
+    licensePeriod: Number(T('period').value),
+    royalty: Number(T('royalty').value),
+    allowDerivative: T('allowDerivative').checked,
+    owner: sess.address,
+    ownerName: sess.name,
+    creator: sess.address,
+    creatorName: sess.name,
+    fileName: file.name,
+    fileSize: file.size > 1048576 ? (file.size/1048576).toFixed(2)+' MB' : (file.size/1024).toFixed(1)+' KB',
+    hash: fileHash,
+    txHash: tx.hash,
+    blockNumber: tx.block,
+    tokenId: 1000 + works.length,
+    createdAt: new Date().toISOString(),
+    status: needAudit ? 'pending' : 'approved',
+    views: 0, likes: 0, licenseCount: 0,
+    cover: coverData,
+    cdn: 'ipfs://bafybei' + Math.random().toString(16).slice(2, 40),
+  };
+  Store.addWork(newWork);
+
+  App.closeModal();
+  App.modal({
+    title:'🎉 确权成功',
+    body: `
+      <p class="dim" style="margin:0 0 14px">《${App.esc(title)}》已在 <b style="color:#1d4ed8">${Web3.chainLabel()}</b> 完成存证${needAudit ? '，目前已进入平台原创性审核队列，通过后自动上架。' : '并已上架至版权市场。'}</p>
+      <div class="kv"><span class="k">Token ID</span><span class="v">#${newWork.tokenId}</span></div>
+      <div class="kv mono"><span class="k">交易哈希</span><span class="v">${App.fmt.addr(tx.hash, 10)}</span></div>
+      <div class="kv"><span class="k">区块高度</span><span class="v">#${App.fmt.num(tx.block)}</span></div>
+      <div class="kv mono"><span class="k">作品指纹</span><span class="v" style="font-size:11px">${fileHash.slice(0,34)}…</span></div>
+      <div class="row mt-16" style="gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-outline" id="cpTx">复制交易哈希</button>
+        <button class="btn btn-sm btn-ghost" id="goCert">下载存证证书</button>
+      </div>`,
+    buttons:[
+      {text:'查看作品详情', cls:'btn-primary', onClick:()=>location.href = 'detail.html?id=' + newWork.id},
+      {text:'回到版权市场', cls:'btn-ghost', onClick:()=>location.href = 'works.html'}
+    ]
+  });
+  document.getElementById('cpTx').onclick = ()=>App.copy(tx.hash);
+  document.getElementById('goCert').onclick = ()=>downloadCert(newWork);
+};
+
+function downloadCert(w){
+  const text =
+`============================================
+      ChainVault 数字版权存证证书
+============================================
+作品名称：${w.title}
+作品类型：${Store.TYPE_MAP[w.type].label}
+创作者  ：${w.creatorName}
+钱包地址：${w.creator}
+--------------------------------------------
+SHA-256 ：${w.hash}
+IPFS CID：${w.cdn}
+Token ID：#${w.tokenId}
+区块高度：#${w.blockNumber}
+交易哈希：${w.txHash}
+存证时间：${App.fmt.dateTime(w.createdAt)}
+--------------------------------------------
+授权方式：${Store.LICENSE_MAP[w.licenseType].label}
+版税率  ：${w.royalty || 5}%
+--------------------------------------------
+链上验证：${Store.settings().explorer}/tx/${w.txHash}
+签发机构：ChainVault Digital Rights Protocol
+============================================`;
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ChainVault存证证书_' + w.title.slice(0,16) + '.txt';
+  a.click();
+  App.toast('存证证书已下载到本地','ok');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>平台管理后台 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+<header class="nav" data-nav></header>
+<section class="container" style="padding:32px 24px 70px" id="root"></section>
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('admin');
+const admin = App.requireAdmin();
+if (admin) boot(admin);
+
+/* ---------- 操作日志 ---------- */
+function getLogs(){ return Store.read ? Store.read('chainvault:logs', []) : JSON.parse(localStorage.getItem('chainvault:logs')||'[]'); }
+function log(op, target, extra){
+  const list = getLogs();
+  list.unshift({op, target, extra: extra||'', by: (App.session()||{}).name || '系统', at: new Date().toISOString()});
+  localStorage.setItem('chainvault:logs', JSON.stringify(list.slice(0, 200)));
+}
+
+function boot(admin){
+  const works = Store.works();
+  const users = Store.users();
+  const orders = Store.orders();
+  const lics = Store.licenses();
+  const pending = works.filter(w=>w.status==='pending');
+  const vol = orders.reduce((a,o)=>a+Number(o.amount||0),0);
+
+  document.getElementById('root').innerHTML = `
+  <div class="admin-bar" style="margin:-32px -24px 22px;padding:10px 24px;font-size:12.6px">
+    🔐 管理员会话：${App.esc(admin.name)} · ${App.fmt.addr(admin.address,6)} ｜ 所有敏感操作将被记录至审计日志
+  </div>
+
+  <div class="row between wrap mb-24">
+    <div>
+      <h1 style="margin:0 0 4px;font-size:30px">平台运营控制台</h1>
+      <p class="dim" style="margin:0">链上版权存证、授权与交易的统一维护入口 · 数据每 30 秒自动同步</p>
+    </div>
+    <div class="row" style="gap:8px">
+      <span class="net-pill"><i class="dot"></i> ${Web3.chainLabel()} · 区块 #${App.fmt.num(Store.chain().block)}</span>
+      <button class="btn btn-outline btn-sm" id="btnSync">🔄 同步链上数据</button>
+    </div>
+  </div>
+
+  <div class="grid g-4 mb-24" id="kpis"></div>
+
+  <div class="tabs mb-24">
+    <button class="on" data-t="dash">📊 数据概览</button>
+    <button data-t="audit">🛡️ 作品审核 <span class="badge warn">${pending.length}</span></button>
+    <button data-t="user">👥 用户管理 (${users.length})</button>
+    <button data-t="tx">💱 交易监控 (${orders.length})</button>
+    <button data-t="lic">📜 授权管理 (${lics.length})</button>
+    <button data-t="set">⚙️ 系统设置</button>
+    <button data-t="log">🧾 审计日志</button>
+  </div>
+  <div id="body"></div>`;
+
+  /* ---------- KPI ---------- */
+  const kpis = [
+    {k:'累计存证作品', v:App.fmt.num(works.length+2387), d:'本周 +' + (works.filter(w=>Date.now()-new Date(w.createdAt)<7*864e5).length+38), ico:'🛡️'},
+    {k:'待审核作品', v:App.fmt.num(pending.length), d:'需在 24h 内处理', ico:'⏳', warn:true},
+    {k:'平台成交额', v:App.fmt.num(Math.round(vol+1284))+' ETH', d:'手续费收入 '+App.fmt.eth((vol+1284)*0.025)+' ETH', ico:'💱'},
+    {k:'注册用户', v:App.fmt.num(users.length+4261), d:'创作者占比 62%', ico:'👥'},
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(s=>
+    `<div class="stat"><div class="ico">${s.ico}</div><div class="k">${s.k}</div>
+      <div class="v" style="color:${s.warn&&s.v!=='0'?'#b45309':'inherit'}">${s.v}</div>
+      <div class="d ${s.warn?'':'up'}">${s.d}</div></div>`).join('');
+
+  /* ---------- 图表 ---------- */
+  function lineChart(){
+    const data = [42,58,49,73,66,88,95,82,104,121,118,140];
+    const w = 700, h = 200, pad = 26;
+    const max = Math.max(...data), min = Math.min(...data);
+    const pts = data.map((v,i)=>[pad + i*(w-pad*2)/(data.length-1), h-pad - (v-min)/(max-min)*(h-pad*2)]);
+    const line = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+    const area = line + ` L${w-pad} ${h-pad} L${pad} ${h-pad} Z`;
+    return `<svg viewBox="0 0 ${w} ${h}" class="chart-box" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2563eb" stop-opacity=".55"/>
+          <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="st1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#0891b2"/>
+        </linearGradient>
+      </defs>
+      ${[0,1,2,3].map(i=>`<line x1="${pad}" y1="${pad+i*(h-pad*2)/3}" x2="${w-pad}" y2="${pad+i*(h-pad*2)/3}" stroke="#eceff4" />`).join('')}
+      <path d="${area}" fill="url(#lg1)"/>
+      <path d="${line}" fill="none" stroke="url(#st1)" stroke-width="2.6" stroke-linejoin="round"/>
+      ${pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>`).join('')}
+      ${data.map((v,i)=>`<text x="${(pad+i*(w-pad*2)/(data.length-1)).toFixed(1)}" y="${h-6}" fill="#6b7694" font-size="11" text-anchor="middle">${i+1}月</text>`).join('')}
+    </svg>`;
+  }
+
+  function barChart(){
+    const types = Object.keys(Store.TYPE_MAP).map(k=>{
+      const arr = works.filter(w=>w.type===k);
+      return {label: Store.TYPE_MAP[k].label, icon: Store.TYPE_MAP[k].icon,
+        n: arr.length, v: arr.reduce((a,w)=>a+Number(w.price),0)};
+    });
+    const max = Math.max(...types.map(t=>t.n), 1);
+    return `<div class="col" style="gap:14px">
+      ${types.map(t=>`<div>
+        <div class="row between mb-8" style="font-size:13px">
+          <span>${t.icon} ${t.label}</span>
+          <span class="dim">${t.n} 件 · ${App.fmt.eth(t.v)} ETH</span>
+        </div>
+        <div class="bar"><i style="width:${(t.n/max*100).toFixed(1)}%"></i></div>
+      </div>`).join('')}
+      <div class="mini-grid mt-16">
+        <div class="card" style="padding:12px"><div class="mute" style="font-size:11.5px">Gas 均价</div><div style="font-weight:700;font-size:17px">${Store.chain().gasPrice} Gwei</div></div>
+        <div class="card" style="padding:12px"><div class="mute" style="font-size:11.5px">合约调用/日</div><div style="font-weight:700;font-size:17px">${App.fmt.num(1428+works.length*7)}</div></div>
+        <div class="card" style="padding:12px"><div class="mute" style="font-size:11.5px">纠纷处理中</div><div style="font-weight:700;font-size:17px">2 起</div></div>
+      </div>
+    </div>`;
+  }
+
+  /* ---------- 面板 ---------- */
+  const bodies = {
+    dash: ()=>`
+      <div class="grid g-2">
+        <div class="card">
+          <div class="row between mb-16"><b>近 12 个月平台成交额（ETH）</b><span class="badge up">↗ +18.6%</span></div>
+          ${lineChart()}
+        </div>
+        <div class="card">
+          <div class="row between mb-16"><b>内容品类分布</b><span class="badge info">实时</span></div>
+          ${barChart()}
+        </div>
+      </div>
+      <div class="grid g-3 mt-24">
+        <div class="card">
+          <b class="mb-16">⏳ 待处理事项</b>
+          <div class="log-item"><span class="badge warn">待审核</span><div>${pending.length} 件作品等待原创性核验</div></div>
+          <div class="log-item"><span class="badge err">争议</span><div>2 起侵权举证待法务确认</div></div>
+          <div class="log-item"><span class="badge info">结算</span><div>本周待结算版税 ${App.fmt.eth(vol*0.05)} ETH</div></div>
+          <div class="log-item"><span class="badge cyan">合约</span><div>Gas 价格监测正常</div></div>
+        </div>
+        <div class="card">
+          <b class="mb-16">🔥 热门作品 TOP 5</b>
+          ${works.slice().sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,5).map((w,i)=>
+            `<div class="log-item"><span class="badge ${i<3?'info':''}">${i+1}</span>
+              <div style="flex:1"><a href="detail.html?id=${w.id}" style="color:#1d4ed8">${App.esc(w.title)}</a>
+              <div class="mute" style="font-size:11.5px">👁 ${App.fmt.num(w.views)} · ${App.fmt.eth(w.price)} ETH</div></div></div>`).join('')}
+        </div>
+        <div class="card">
+          <b class="mb-16">🧾 最新链上交易</b>
+          ${orders.slice(0,5).map(o=>
+            `<div class="log-item"><span class="badge ${o.type==='transfer'?'info':'cyan'}">${o.type==='transfer'?'转让':'授权'}</span>
+              <div style="flex:1"><div class="truncate" style="max-width:190px">${App.esc(o.workTitle)}</div>
+              <div class="mute" style="font-size:11.5px">${App.fmt.eth(o.amount)} ETH · ${App.fmt.ago(o.createdAt)}</div></div></div>`).join('')}
+        </div>
+      </div>`,
+
+    audit: ()=> pending.length ? `
+      <div class="table-wrap"><table class="tb">
+        <thead><tr><th>作品</th><th>品类</th><th>作者</th><th>提交时间</th><th>定价</th><th>哈希指纹</th><th>操作</th></tr></thead>
+        <tbody>${pending.map(w=>{
+          const t = Store.TYPE_MAP[w.type];
+          return `<tr>
+            <td><a href="detail.html?id=${w.id}" style="color:#1d4ed8;font-weight:600">${App.esc(w.title)}</a>
+              <div class="mute" style="font-size:11.5px">${App.esc((w.desc||'').slice(0,26))}…</div></td>
+            <td>${t.icon} ${t.label}</td>
+            <td>${App.esc(w.creatorName)}<div class="mono mute" style="font-size:11px">${App.fmt.addr(w.creator,4)}</div></td>
+            <td>${App.fmt.dateTime(w.createdAt)}</td>
+            <td>${App.fmt.eth(w.price)} ETH</td>
+            <td class="mono" style="font-size:11px;color:#1d4ed8">${App.fmt.addr(w.hash,6)}</td>
+            <td><div class="row" style="gap:6px">
+              <button class="btn btn-sm btn-success" data-ap="${w.id}">✓ 通过</button>
+              <button class="btn btn-sm btn-danger" data-rj="${w.id}">✕ 驳回</button>
+            </div></td>
+          </tr>`;}).join('')}</tbody></table></div>`
+      : `<div class="empty card"><div class="ico">✅</div><p>当前没有待审核作品，全部队列已清空</p></div>`,
+
+    user: ()=>`
+      <div class="row wrap mb-16">
+        <input class="input" id="userQ" placeholder="🔍 搜索昵称 / 邮箱 / 钱包地址" style="max-width:320px">
+        <select class="select" id="userRole" style="max-width:160px">
+          <option value="">全部角色</option><option value="admin">管理员</option><option value="user">创作者</option>
+        </select>
+        <select class="select" id="userStatus" style="max-width:160px">
+          <option value="">全部状态</option><option value="active">正常</option><option value="banned">已封禁</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table class="tb">
+        <thead><tr><th>用户</th><th>角色</th><th>作品数</th><th>注册时间</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="userRows"></tbody></table></div>`,
+
+    tx: ()=>`
+      <div class="card mb-16"><div class="row wrap between">
+        <div><b>平台交易流水</b><div class="hint">所有成交由合约原子结算，管理员无法篡改，仅可标记异常</div></div>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-sm btn-outline" onclick="App.toast('已导出 ${orders.length} 条交易流水','ok')">导出 CSV</button>
+          <button class="btn btn-sm" onclick="App.toast('资金结算通道正常，无异常挂单','ok')">结算检查</button>
+        </div>
+      </div></div>
+      <div class="table-wrap"><table class="tb">
+        <thead><tr><th>时间</th><th>作品</th><th>类型</th><th>买方</th><th>卖方</th><th>金额</th><th>手续费</th><th>哈希</th></tr></thead>
+        <tbody>${orders.map(o=>`<tr>
+          <td>${App.fmt.dateTime(o.createdAt)}</td>
+          <td>${App.esc(o.workTitle)}</td>
+          <td><span class="badge ${o.type==='transfer'?'info':'cyan'}">${o.type==='transfer'?'转让':'授权'}</span></td>
+          <td>${App.esc(o.buyerName)}</td><td>${App.esc(o.sellerName)}</td>
+          <td><b>${App.fmt.eth(o.amount)}</b> ETH</td>
+          <td class="up">+${App.fmt.eth(o.fee || 0)} ETH</td>
+          <td class="mono" style="font-size:11px;cursor:pointer" onclick="App.copy('${o.txHash}')">${App.fmt.addr(o.txHash,5)}</td>
+        </tr>`).join('')}</tbody></table></div>`,
+
+    lic: ()=>`
+      <div class="table-wrap"><table class="tb">
+        <thead><tr><th>作品</th><th>被授权方</th><th>授权范围</th><th>期限</th><th>费用</th><th>到期</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${lics.map(l=>`<tr>
+          <td>${App.esc(l.workTitle)}</td>
+          <td>${App.esc(l.licenseeName)}<div class="mono mute" style="font-size:11px">${App.fmt.addr(l.licensee,5)}</div></td>
+          <td>${Store.LICENSE_MAP[l.scope].label}</td>
+          <td>${l.period?l.period+' 年':'永久'}</td>
+          <td>${App.fmt.eth(l.price)} ETH</td>
+          <td>${l.expiresAt?App.fmt.date(l.expiresAt):'永久'}</td>
+          <td><span class="badge ${l.status==='active'?'ok':'err'}">${l.status==='active'?'生效中':'已吊销'}</span></td>
+          <td>${l.status==='active'?`<button class="btn btn-sm btn-danger" data-rv="${l.id}">吊销</button>`:'—'}</td>
+        </tr>`).join('')}</tbody></table></div>`,
+
+    set: ()=>{
+      const s = Store.settings();
+      return `<div class="grid g-2">
+        <div class="card">
+          <b>链上与合约参数</b>
+          <div class="field mt-16"><label class="label">存证合约地址</label><input class="input mono" id="sContract" value="${s.contract}"></div>
+          <div class="grid g-2" style="gap:14px">
+            <div class="field"><label class="label">网络</label>
+              <select class="select" id="sNet">
+                <option value="Ethereum Sepolia">Ethereum Sepolia</option>
+                <option value="Ethereum 主网">Ethereum 主网</option>
+                <option value="Polygon">Polygon</option>
+                <option value="BNB Chain">BNB Chain</option>
+              </select></div>
+            <div class="field"><label class="label">区块浏览器</label><input class="input" id="sExplorer" value="${s.explorer}"></div>
+          </div>
+          <div class="grid g-2" style="gap:14px">
+            <div class="field"><label class="label">平台手续费（%）</label><input class="input" type="number" id="sFee" value="${s.platformFee}" step="0.1"></div>
+            <div class="field"><label class="label">最低价（ETH）</label><input class="input" type="number" id="sMin" value="${s.minPrice}" step="0.01"></div>
+          </div>
+          <div class="field"><label class="label">默认版税率（%）</label><input class="input" type="number" id="sRoy" value="${s.royaltyRate}" step="1"></div>
+        </div>
+        <div class="card">
+          <b>运营策略</b>
+          <div class="col mt-16" style="gap:14px">
+            <label class="switch"><input type="checkbox" id="sAuto" ${s.autoApprove?'checked':''}><span class="track"></span>
+              <div><div style="font-size:13.6px">新作品自动通过审核</div><div class="hint">关闭后所有作品需人工核验后上架</div></div></label>
+            <label class="switch"><input type="checkbox" id="sMaintain" ${s.maintain?'checked':''}><span class="track"></span>
+              <div><div style="font-size:13.6px">全站维护模式</div><div class="hint">开启后前台仅可浏览，暂停交易与上链</div></div></label>
+            <label class="switch"><input type="checkbox" checked><span class="track"></span>
+              <div><div style="font-size:13.6px">侵权全网监测</div><div class="hint">每周扫描一次外部平台并生成举证建议</div></div></label>
+          </div>
+          <div class="card mt-24" style="padding:14px;background:#f7f8fa">
+            <div class="mute" style="font-size:11.5px">合约 ABI 摘要</div>
+            <div class="mono mt-8" style="font-size:11.2px;line-height:1.8;color:#1d4ed8">
+              registerWork(bytes32,string,uint8)<br>transferCopyright(uint256,address)<br>grantLicense(uint256,address,uint8,uint256)<br>royaltyInfo(uint256,uint256)
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg mt-16" id="saveSet">保存设置并同步合约</button>
+        </div>
+      </div>`;
+    },
+
+    log: ()=>{
+      const logs = getLogs();
+      return logs.length ? `<div class="card">${logs.map(l=>`
+        <div class="log-item">
+          <span class="badge info">${App.fmt.dateTime(l.at)}</span>
+          <div style="flex:1"><b>${App.esc(l.op)}</b> — ${App.esc(l.target)}
+            ${l.extra?`<div class="mute" style="font-size:11.5px">${App.esc(l.extra)}</div>`:''}</div>
+          <span class="badge">${App.esc(l.by)}</span>
+        </div>`).join('')}</div>`
+        : `<div class="empty card"><div class="ico">🧾</div><p>本次会话暂无操作记录，执行审核或管理操作后将自动留痕</p></div>`;
+    },
+  };
+
+  function show(k){
+    document.getElementById('body').innerHTML = bodies[k]();
+    document.querySelectorAll('.tabs button[data-t]').forEach(b=>b.classList.remove('on'));
+    document.querySelector(`.tabs button[data-t="${k}"]`).classList.add('on');
+    bind(k);
+  }
+
+  function bind(k){
+    if(k==='audit'){
+      document.querySelectorAll('[data-ap]').forEach(b=>b.onclick=()=>{
+        const id=b.dataset.ap;
+        Store.approveWork(id,true);
+        log('审核通过', Store.getWork(id).title);
+        App.toast('作品已通过审核并上架至市场','ok');
+        setTimeout(()=>location.reload(),600);
+      });
+      document.querySelectorAll('[data-rj]').forEach(b=>b.onclick=()=>{
+        const id=b.dataset.rj;
+        App.confirm('驳回作品','驳回后作者可修改后重新提交，链上存证记录仍保留。','确认驳回',()=>{
+          Store.approveWork(id,false);
+          log('驳回作品', Store.getWork(id).title);
+          App.toast('作品已驳回','ok');
+          setTimeout(()=>location.reload(),600);
+        },true);
+      });
+    }
+    if(k==='user'){
+      const rows = document.getElementById('userRows');
+      function draw(){
+        const kw=(document.getElementById('userQ').value||'').toLowerCase();
+        const role=document.getElementById('userRole').value;
+        const st=document.getElementById('userStatus').value;
+        rows.innerHTML = users.filter(u=>{
+          if(role && u.role!==role) return false;
+          if(st && (u.status||'active')!==st) return false;
+          if(kw && !((u.name||'')+(u.email||'')+(u.address||'')).toLowerCase().includes(kw)) return false;
+          return true;
+        }).map(u=>{
+          const n = works.filter(w=>(w.creator||'').toLowerCase()===(u.address||'').toLowerCase()).length;
+          const banned = u.status==='banned';
+          return `<tr>
+            <td><div class="row" style="gap:10px">
+              <div class="avatar sm" style="background:${App.avatarColor(u.name)}">${App.esc(App.initial(u.name))}</div>
+              <div><div style="font-weight:600">${App.esc(u.name)}</div>
+              <div class="mono mute" style="font-size:11px">${App.fmt.addr(u.address,6)}</div></div></div></td>
+            <td>${u.role==='admin'?'<span class="badge err">管理员</span>':'<span class="badge cyan">创作者</span>'}</td>
+            <td>${n}</td>
+            <td>${App.esc(u.createdAt||'—')}</td>
+            <td><span class="badge ${banned?'err':'ok'}">${banned?'已封禁':'正常'}</span></td>
+            <td><div class="row" style="gap:6px">
+              ${banned
+                ? `<button class="btn btn-sm btn-success" data-unban="${u.address}">解封</button>`
+                : `<button class="btn btn-sm btn-danger" data-ban="${u.address}">封禁</button>`}
+              <button class="btn btn-sm btn-outline" data-role="${u.address}">${u.role==='admin'?'取消管理员':'设为管理员'}</button>
+            </div></td>
+          </tr>`;}).join('') || `<tr><td colspan="6"><div class="empty" style="padding:26px">无匹配用户</div></td></tr>`;
+
+        rows.querySelectorAll('[data-ban]').forEach(b=>b.onclick=()=>{
+          const a=b.dataset.ban;
+          App.confirm('封禁账号','封禁后该地址无法登录、确权与交易，历史链上记录不受影响。','确认封禁',()=>{
+            Store.setUserStatus(a,'banned'); log('封禁用户', Store.getUser(a).name);
+            App.toast('账号已封禁','ok'); setTimeout(()=>location.reload(),600);
+          },true);
+        });
+        rows.querySelectorAll('[data-unban]').forEach(b=>b.onclick=()=>{
+          Store.setUserStatus(b.dataset.unban,'active'); log('解封用户', b.dataset.unban.slice(0,10));
+          App.toast('账号已恢复','ok'); setTimeout(()=>location.reload(),600);
+        });
+        rows.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{
+          const a=b.dataset.role, u=Store.getUser(a);
+          Store.upsertUser({address:a, role: u.role==='admin'?'user':'admin'});
+          log('变更角色', u.name, u.role==='admin'?'取消管理员':'设为管理员');
+          App.toast('角色已更新','ok'); setTimeout(()=>location.reload(),600);
+        });
+      }
+      document.getElementById('userQ').oninput=draw;
+      document.getElementById('userRole').onchange=draw;
+      document.getElementById('userStatus').onchange=draw;
+      draw();
+    }
+    if(k==='lic'){
+      document.querySelectorAll('[data-rv]').forEach(b=>b.onclick=()=>{
+        App.confirm('吊销授权','吊销后被授权方立即失去使用权，凭证 NFT 将被标记为失效。','确认吊销',()=>{
+          const list = Store.licenses();
+          const i = list.findIndex(l=>l.id===b.dataset.rv);
+          if(i>=0){ list[i].status='revoked';
+            localStorage.setItem('chainvault:licenses', JSON.stringify(list));
+            log('吊销授权', list[i].workTitle, list[i].licenseeName); }
+          App.toast('授权凭证已吊销','ok'); setTimeout(()=>location.reload(),600);
+        },true);
+      });
+    }
+    if(k==='set'){
+      const s = Store.settings();
+      document.getElementById('sNet').value = s.network;
+      document.getElementById('saveSet').onclick = ()=>{
+        Store.saveSettings({
+          contract: document.getElementById('sContract').value.trim(),
+          network: document.getElementById('sNet').value,
+          explorer: document.getElementById('sExplorer').value.trim(),
+          platformFee: Number(document.getElementById('sFee').value),
+          minPrice: Number(document.getElementById('sMin').value),
+          royaltyRate: Number(document.getElementById('sRoy').value),
+          autoApprove: document.getElementById('sAuto').checked,
+          maintain: document.getElementById('sMaintain').checked,
+        });
+        log('修改系统设置', '合约与费率参数');
+        App.toast('设置已保存并同步至索引服务','ok','保存成功');
+        setTimeout(()=>location.reload(), 800);
+      };
+    }
+  }
+
+  show('dash');
+  document.querySelectorAll('.tabs button[data-t]').forEach(b=>b.onclick=()=>show(b.dataset.t));
+  document.getElementById('btnSync').onclick = ()=>{
+    const c = Store.bumpChain();
+    App.toast('已同步至区块 #' + App.fmt.num(c.block) + '，Gas ' + c.gasPrice + ' Gwei','ok','链上数据已更新');
+    setTimeout(()=>location.reload(), 900);
+  };
+}
+</script>
+</body>
+</html>

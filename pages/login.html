@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<style>
+  .auth-wrap{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:40px 20px}
+  .auth-card{width:min(940px,100%);display:grid;grid-template-columns:1fr 1fr;border-radius:26px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)}
+  .auth-side{padding:40px 34px;background:linear-gradient(165deg,#f8fafc 0%,#eef4ff 100%);position:relative;overflow:hidden}
+  .auth-side::after{content:"";position:absolute;width:240px;height:240px;right:-80px;bottom:-100px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.10),transparent 62%)}
+  .auth-form{padding:40px 34px;background:#fff}
+  @media(max-width:860px){.auth-card{grid-template-columns:1fr}.auth-side{display:none}}
+</style>
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<div class="auth-wrap">
+  <div class="auth-card up-in">
+    <div class="auth-side">
+      <a href="../index.html" class="logo mb-24"><span class="logo-mark">🛡️</span><span>ChainVault<small>DIGITAL RIGHTS</small></span></a>
+      <h2 style="font-size:26px;margin:0 0 12px">登录以管理你的<br>链上版权资产</h2>
+      <p class="dim" style="font-size:14px">支持钱包签名登录与邮箱账号登录两种方式，同一地址下的作品、授权与收益互相打通。</p>
+      <div class="col mt-32" style="gap:12px;position:relative;z-index:2">
+        <div class="row" style="gap:10px"><span class="badge ok">✓</span><span class="dim" style="font-size:13.5px">作品哈希上链，本地不出账</span></div>
+        <div class="row" style="gap:10px"><span class="badge ok">✓</span><span class="dim" style="font-size:13.5px">授权到期自动失效，防止超范围使用</span></div>
+        <div class="row" style="gap:10px"><span class="badge ok">✓</span><span class="dim" style="font-size:13.5px">成交即结算，版税自动划转</span></div>
+      </div>
+      <div class="mt-32" style="position:relative;z-index:2">
+        <div class="card" style="padding:14px 16px;background:rgba(0,0,0,.2)">
+          <div class="mute" style="font-size:11.5px">当前合约 · Sepolia</div>
+          <div class="mono" style="font-size:11.6px;word-break:break-all;margin-top:4px" id="contractAddr"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-form">
+      <div class="tabs mb-24">
+        <button class="on" data-tab="pw">邮箱登录</button>
+        <button data-tab="reg">注册账号</button>
+        <button data-tab="help">帮助</button>
+      </div>
+
+      <!-- 钱包登录 -->
+      <div id="walletBox" class="mb-24">
+        <button class="btn btn-primary btn-lg btn-block" id="btnWallet">🦊 使用钱包签名登录</button>
+        <button class="btn btn-lg btn-block mt-8" id="btnDemo">🧪 演示钱包登录（体验用）</button>
+        <div class="hint mt-8 center" id="walletHint"></div>
+      </div>
+      <div class="row" style="gap:12px;align-items:center;margin:4px 0 20px">
+        <div style="flex:1;height:1px;background:var(--line)"></div><span class="mute" style="font-size:12px">或使用邮箱</span><div style="flex:1;height:1px;background:var(--line)"></div>
+      </div>
+
+      <!-- 邮箱登录 -->
+      <div id="tab-pw">
+        <form id="loginForm">
+          <div class="field">
+            <label class="label">邮箱地址</label>
+            <input class="input" type="email" id="lgEmail" placeholder="you@example.com" required>
+          </div>
+          <div class="field">
+            <label class="label">登录密码 <span>忘记密码？</span></label>
+            <input class="input" type="password" id="lgPwd" placeholder="请输入密码" required>
+          </div>
+          <label class="check mb-16"><input type="checkbox" checked> 我已阅读并同意《服务条款》与《隐私政策》</label>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">登 录</button>
+        </form>
+      </div>
+
+      <!-- 注册 -->
+      <div id="tab-reg" class="hidden">
+        <form id="regForm">
+          <div class="field"><label class="label">昵称 / 创作者名</label><input class="input" id="rgName" placeholder="你的笔名或工作室名" required></div>
+          <div class="field"><label class="label">邮箱地址</label><input class="input" type="email" id="rgEmail" placeholder="you@example.com" required></div>
+          <div class="field"><label class="label">设置密码 <span>不少于 6 位</span></label><input class="input" type="password" id="rgPwd" placeholder="至少 6 位密码" minlength="6" required></div>
+          <div class="field"><label class="label">创作者类型</label>
+            <select class="select" id="rgType">
+              <option value="art">🎨 数字视觉 / 插画 / 3D</option>
+              <option value="music">🎵 音乐创作 / 音频制作</option>
+              <option value="literature">✍️ 文学写作 / 剧本</option>
+            </select>
+          </div>
+          <label class="check mb-16"><input type="checkbox" id="rgAgree" required> 我声明所上传作品均为本人原创，或已获得完整授权</label>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">注册并登录</button>
+        </form>
+      </div>
+
+      <!-- 帮助 -->
+      <div id="tab-help" class="hidden">
+        <div class="col" style="gap:12px;font-size:13.6px">
+          <div class="card" style="padding:14px 16px"><b>没有钱包怎么办？</b><p class="dim" style="margin:4px 0 0">可先使用演示钱包体验全部功能；正式使用前安装 MetaMask 扩展程序并完成助记词备份即可。</p></div>
+          <div class="card" style="padding:14px 16px"><b>换设备后资产还在吗？</b><p class="dim" style="margin:4px 0 0">资产记在链上地址名下，更换设备后使用同一钱包登录即可看到全部作品与授权凭证。</p></div>
+          <div class="card" style="padding:14px 16px"><b>管理员账号如何申请？</b><p class="dim" style="margin:4px 0 0">平台管理员为内部岗位账号，不对外注册；演示环境可直接使用上方预置管理员账号登录。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('');
+document.getElementById('contractAddr').textContent = Store.settings().contract;
+document.getElementById('walletHint').textContent = Web3.hasWallet()
+  ? '已检测到 ' + Web3.walletName() + '，将在钱包中弹出签名请求'
+  : '未检测到浏览器钱包插件，建议使用演示钱包体验';
+
+/* tab 切换 */
+document.querySelectorAll('.tabs button').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    ['pw','reg','help'].forEach(k=>document.getElementById('tab-'+k).classList.toggle('hidden', k!==b.dataset.tab));
+    const wb = document.getElementById('walletBox');
+    if (b.dataset.tab==='help'){ wb.classList.add('hidden'); document.querySelector('.auth-form .row').classList.add('hidden'); }
+    else { wb.classList.remove('hidden'); document.querySelector('.auth-form .row').classList.remove('hidden'); }
+  };
+});
+
+const redirect = App.q('redirect');
+/* 跳转：优先回到来源页，其次按角色进入对应后台 */
+function finish(){
+  if (redirect) { setTimeout(()=>location.href = App.page(redirect), 800); return; }
+  const s = App.session();
+  setTimeout(()=>location.href = App.page(s.role==='admin' ? 'admin.html' : 'dashboard.html'), 800);
+}
+
+document.getElementById('btnWallet').onclick = ()=> App.doWalletLogin(false);
+document.getElementById('btnDemo').onclick = ()=> App.doWalletLogin(true);
+
+document.getElementById('loginForm').onsubmit = function(e){
+  e.preventDefault();
+  const email = this.querySelector('#lgEmail').value.trim();
+  const pwd = this.querySelector('#lgPwd').value;
+  const acc = Store.findAccount(email);
+  if(!acc) return App.toast('该邮箱尚未注册，请先注册账号或使用钱包登录','err');
+  if(acc.pwd !== Store.simpleHash(pwd)) return App.toast('密码错误，请重新输入','err');
+  const u = Store.getUser(acc.addr);
+  if(u && u.status==='banned') return App.toast('该账号已被管理员封禁','err','登录失败');
+  App.login({address:acc.addr, name:acc.name, role:acc.role, method:'email', walletMode:'demo', email:email});
+  App.toast('欢迎回来，' + acc.name + '！','ok','登录成功');
+  App.renderAuth();
+  finish();
+};
+
+document.getElementById('regForm').onsubmit = function(e){
+  e.preventDefault();
+  const name = this.querySelector('#rgName').value.trim();
+  const email = this.querySelector('#rgEmail').value.trim();
+  const pwd = this.querySelector('#rgPwd').value;
+  const type = this.querySelector('#rgType').value;
+  if(pwd.length<6) return App.toast('密码长度不能少于 6 位','err');
+  if(Store.findAccount(email)) return App.toast('该邮箱已注册，请直接登录','err');
+  const addr = Web3.hasWallet() && false ? '' : Store.randAddr();
+  const acc = Store.addAccount({email, name, pwd:Store.simpleHash(pwd), addr, role:'user'});
+  Store.upsertUser({
+    address: addr, name, email, role:'user', status:'active',
+    createdAt:new Date().toISOString().slice(0,10),
+    bio: Store.TYPE_MAP[type].label + '创作者'
+  });
+  App.login({address:addr, name, role:'user', method:'email', walletMode:'demo', email});
+  App.toast('账号创建成功，已为你分配链上地址：' + App.fmt.addr(addr,6),'ok','注册成功');
+  finish();
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>消息中心 · ChainVault</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<style>
+  .msg-layout{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start}
+  .thread{
+    display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-soft);
+    cursor:pointer;transition:.15s;position:relative;
+  }
+  .thread:hover{background:var(--bg-soft)}
+  .thread.on{background:var(--brand-soft);box-shadow:inset 3px 0 0 var(--brand)}
+  .thread .p{min-width:0;flex:1}
+  .thread .nm{font-size:13.8px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
+  .thread .pv{font-size:12.5px;color:var(--text-mute);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .thread .wk{font-size:11.5px;color:var(--text-mute);margin-top:3px}
+  .chat-box{height:420px;overflow-y:auto;padding:16px;background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:10px}
+  .bubble-row{display:flex;gap:8px;margin-bottom:12px;align-items:flex-start}
+  .bubble-row.me{flex-direction:row-reverse}
+  .bubble{
+    max-width:72%;padding:9px 13px;border-radius:12px;font-size:13.6px;line-height:1.6;white-space:pre-wrap;
+    background:#fff;border:1px solid var(--line);
+  }
+  .bubble-row.me .bubble{background:var(--brand);border-color:var(--brand);color:#fff}
+  .bubble .tm{font-size:10.8px;color:var(--text-mute);margin-top:3px}
+  .bubble-row.me .bubble .tm{color:rgba(255,255,255,.8)}
+  .sys-tip{text-align:center;font-size:12px;color:var(--text-mute);padding:6px 0 12px}
+  @media (max-width:860px){ .msg-layout{grid-template-columns:1fr} .chat-box{height:340px} }
+</style>
+</head>
+<body>
+<header class="nav" data-nav></header>
+
+<section class="container" style="padding:32px 24px 60px">
+  <div class="crumb"><a href="../index.html">首页</a> / 消息中心</div>
+  <div class="row between wrap mb-24">
+    <div>
+      <h1 style="margin:0 0 4px;font-size:28px">消息中心</h1>
+      <p class="dim" style="margin:0">买家发起的议价消息会出现在对应作者的消息栏，作者可回复或设置自动回复。</p>
+    </div>
+    <div class="row" style="gap:8px">
+      <button class="btn btn-outline btn-sm" id="btnAutoReply">⚙️ 自动回复设置</button>
+      <a class="btn btn-sm" href="works.html">浏览版权市场</a>
+    </div>
+  </div>
+
+  <div class="msg-layout">
+    <!-- 会话列表 -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tabs m-0" style="border:none;border-bottom:1px solid var(--line);border-radius:0;background:#fff">
+        <button class="on" data-inbox="in">📥 收到 (<span id="cntIn">0</span>)</button>
+        <button data-inbox="out">📤 发出 (<span id="cntOut">0</span>)</button>
+      </div>
+      <div id="threadList" style="max-height:520px;overflow-y:auto"></div>
+    </div>
+
+    <!-- 对话区 -->
+    <div id="chatPane"></div>
+  </div>
+</section>
+
+<footer class="footer" data-footer></footer>
+
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/web3.js"></script>
+<script src="../assets/js/app.js"></script>
+<script>
+App.mountNav('msg');
+
+/* 状态变量必须在 boot() 调用前初始化，否则触发 TDZ 报错 */
+let curId = null;      // 当前会话
+let inbox = 'in';      // in | out
+
+const sess = App.requirePageLogin();
+if (sess) boot(sess);
+
+function boot(sess){
+  const me = sess.address;
+
+  /* ---------- 会话列表 ---------- */
+  function threads(){
+    const all = Store.threadsOf(me);
+    return {
+      in:  all.filter(n => String(n.seller).toLowerCase() === me.toLowerCase()),
+      out: all.filter(n => String(n.buyer).toLowerCase() === me.toLowerCase()),
+    };
+  }
+  function renderList(){
+    const t = threads();
+    document.getElementById('cntIn').textContent = t.in.length;
+    document.getElementById('cntOut').textContent = t.out.length;
+    const list = t[inbox];
+    const box = document.getElementById('threadList');
+    if (!list.length){
+      box.innerHTML = `<div class="empty" style="padding:34px 18px">
+        <div class="ico">💬</div>
+        <p>${inbox==='in' ? '还没有收到任何议价消息' : '你还没有发起过议价'}</p>
+        ${inbox==='out' ? '<a class="btn btn-outline btn-sm" href="works.html">去市场看看</a>' : ''}</div>`;
+      return;
+    }
+    box.innerHTML = list.map(n=>{
+      const other = inbox==='in' ? n.buyerName : n.sellerName;
+      const msgs = n.messages || [];
+      const last = msgs.length ? msgs[msgs.length-1] : null;
+      const preview = last ? (last.from==='buyer' ? (inbox==='in'?'':'我：') : (inbox==='in'?'我：':'')) + last.text : '（暂无消息）';
+      return `<div class="thread ${n.id===curId?'on':''}" data-id="${n.id}">
+        <div class="avatar sm" style="background:${App.avatarColor(other)}">${App.esc(App.initial(other))}</div>
+        <div class="p">
+          <div class="nm">
+            <span class="truncate">${App.esc(other)}</span>
+            <span class="mute" style="font-weight:400;font-size:11.5px">${last?App.fmt.ago(last.at):App.fmt.ago(n.createdAt)}</span>
+          </div>
+          <div class="pv">${App.esc(preview)}</div>
+          <div class="wk">关于：${App.esc(n.workTitle)}</div>
+        </div>
+        ${n._unread ? `<span class="badge err" style="position:absolute;right:10px;bottom:10px">${n._unread}</span>` : ''}
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.thread').forEach(el=>{
+      el.onclick = ()=>{ curId = el.dataset.id; openThread(curId); renderList(); };
+    });
+  }
+
+  /* ---------- 对话面板 ---------- */
+  function openThread(id){
+    const n = Store.negoById(id);
+    const pane = document.getElementById('chatPane');
+    if(!n){ pane.innerHTML = ``; return; }
+    const iAmBuyer = String(n.buyer).toLowerCase() === me.toLowerCase();
+    const role = iAmBuyer ? 'buyer' : 'seller';
+    const other = iAmBuyer ? n.sellerName : n.buyerName;
+    const work = Store.getWork(n.workId);
+    Store.markRead(id, role);          // 打开即已读
+    App.refreshMsg();
+
+    pane.innerHTML = `
+      <div class="card">
+        <div class="row between wrap mb-16" style="padding-bottom:12px;border-bottom:1px solid var(--line-soft)">
+          <div class="row" style="gap:12px">
+            <div class="avatar" style="background:${App.avatarColor(other)}">${App.esc(App.initial(other))}</div>
+            <div>
+              <div style="font-weight:600;font-size:15px">${App.esc(other)}</div>
+              <div class="mute" style="font-size:12px">${iAmBuyer?'作品作者':'意向买家'} · ${App.esc(n.workTitle)}</div>
+            </div>
+          </div>
+          <div class="row" style="gap:8px">
+            ${work ? `<span class="badge info">标价 ${App.fmt.eth(work.price)} ETH</span>` : ''}
+            <a class="btn btn-sm btn-outline" href="detail.html?id=${encodeURIComponent(n.workId)}">查看作品</a>
+          </div>
+        </div>
+
+        <div class="chat-box" id="chatBox"></div>
+
+        <div class="row mt-16" style="gap:8px">
+          <input class="input" id="chatInput" placeholder="输入消息，Enter 发送…" style="flex:1">
+          <button class="btn btn-primary" id="chatSend">发送</button>
+        </div>
+        ${iAmBuyer ? '' : `<div class="hint mt-8">对方发来消息时，若你已开启自动回复，系统会立即自动回复一条。</div>`}
+      </div>`;
+
+    const send = ()=>{
+      const inp = document.getElementById('chatInput');
+      const text = inp.value.trim();
+      if(!text) return;
+      n.messages.push({from:role, text, at:new Date().toISOString()});
+      n[role + 'ReadAt'] = new Date().toISOString();
+      Store.upsertNegotiation(n);
+      inp.value = '';
+      renderChat();
+      if(role === 'buyer'){
+        /* 买家发言 → 触发作者自动回复 */
+        const ar = Store.autoReplyOf(n.seller);
+        if(ar.enabled && ar.text){
+          setTimeout(()=>{
+            n.messages.push({from:'seller', text:ar.text, at:new Date().toISOString(), auto:true});
+            Store.upsertNegotiation(n);
+            if(curId === n.id) renderChat();
+            App.refreshMsg();
+          }, 1000 + Math.random()*600);
+        }
+      }
+      App.refreshMsg();
+    };
+    document.getElementById('chatSend').onclick = send;
+    document.getElementById('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+
+    function renderChat(){
+      const box = document.getElementById('chatBox');
+      if(!box) return;
+      const msgs = n.messages || [];
+      box.innerHTML =
+        `<div class="sys-tip">议价会话已建立 · 关于《${App.esc(n.workTitle)}》</div>` +
+        (msgs.length ? msgs.map(m=>{
+          const mine = (m.from === role);
+          const who = m.from === 'buyer' ? n.buyerName : n.sellerName;
+          return `<div class="bubble-row ${mine?'me':''}">
+            <div class="avatar sm" style="background:${App.avatarColor(who)}">${App.esc(App.initial(who))}</div>
+            <div class="bubble">${App.esc(m.text)}
+              <div class="tm">${App.fmt.dateTime(m.at)}${m.auto?' · 自动回复':''}</div>
+            </div>
+          </div>`;
+        }).join('') : `<div class="empty" style="padding:26px 0"><p>还没有消息，发送第一条开始议价</p></div>`);
+      box.scrollTop = box.scrollHeight;
+    }
+    renderChat();
+  }
+
+  /* ---------- 自动回复设置 ---------- */
+  const ar = Store.autoReplyOf(me);
+  document.getElementById('btnAutoReply').onclick = ()=>{
+    const cur = Store.autoReplyOf(me);
+    App.modal({
+      title:'⚙️ 自动回复设置',
+      body:`
+        <p class="dim" style="margin:0 0 14px">开启后，买家在你的作品页发起议价、或在消息中心给你发消息时，系统会立即以你的名义自动回复一条。</p>
+        <label class="switch mb-16"><input type="checkbox" id="arOn" ${cur.enabled?'checked':''}><span class="track"></span>
+          <span style="font-size:13.5px">启用自动回复</span></label>
+        <div class="field">
+          <label class="label">自动回复内容 <span>建议写明价格区间与联系方式</span></label>
+          <textarea class="textarea" id="arText" placeholder="例：感谢关注！该作品商用授权 0.5 ETH 起，可小刀，具体使用场景请描述一下，我会在 12 小时内回复你。">${App.esc(cur.text||'')}</textarea>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-outline" data-tpl="感谢关注！该作品商用授权可议价，请说明使用场景与投放周期，我会在 12 小时内回复你。">模板 1</button>
+          <button class="btn btn-sm btn-outline" data-tpl="价格可以商量，但需保留我的署名权。方便的话先说下你的预算区间？">模板 2</button>
+          <button class="btn btn-sm btn-outline" data-tpl="感谢你的认可！目前该作品仅授权不出售，最低 0.3 ETH，确认后我立刻发授权凭证。">模板 3</button>
+        </div>`,
+      buttons:[
+        {text:'取消', cls:'btn-ghost'},
+        {text:'保存设置', cls:'btn-primary', onClick:()=>{
+          const enabled = document.getElementById('arOn').checked;
+          const text = document.getElementById('arText').value.trim();
+          if(enabled && !text) return App.toast('启用自动回复时必须填写回复内容','err');
+          Store.setAutoReply(me, {enabled, text});
+          App.toast(enabled ? '自动回复已开启' : '自动回复已关闭','ok','设置已保存');
+        }}
+      ]
+    });
+    document.querySelectorAll('[data-tpl]').forEach(b=>{
+      b.onclick = ()=>{ document.getElementById('arText').value = b.dataset.tpl; };
+    });
+  };
+  if (ar.enabled) App.toast('你已开启自动回复，买家消息将自动应答','info','自动回复生效中');
+
+  /* ---------- Tab 切换 ---------- */
+  document.querySelectorAll('.tabs button[data-inbox]').forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll('.tabs button[data-inbox]').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      inbox = b.dataset.inbox;
+      curId = null;
+      renderList();
+      document.getElementById('chatPane').innerHTML =
+        `<div class="card"><div class="empty" style="padding:40px 0"><div class="ico">💬</div><p>选择左侧会话开始沟通</p></div></div>`;
+    };
+  });
+
+  renderList();
+  const first = threads()[inbox][0];
+  if (first) { curId = first.id; openThread(curId); renderList(); }
+  else {
+    document.getElementById('chatPane').innerHTML =
+      `<div class="card"><div class="empty" style="padding:40px 0"><div class="ico">💬</div><p>暂无会话</p></div></div>`;
+  }
+  App.refreshMsg();
+}
+</script>
+</body>
+</html>
