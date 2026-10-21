@@ -93,9 +93,12 @@
       };
     });
   };
+  /* 只隐藏、不清空内容：确认按钮的回调需要读取弹窗内的输入框，
+     若先清空 innerHTML，回调里 getElementById 会拿到 null（兑换/调价/自动回复都会静默失败）。
+     下次调用 App.modal 时会整体覆盖 innerHTML，不存在内容残留问题。 */
   App.closeModal = function () {
     const root = document.getElementById('modal-root');
-    if (root) { root.classList.remove('on'); root.innerHTML = ''; }
+    if (root) root.classList.remove('on');
   };
   App.alert = (title, body) => App.modal({ title, body, buttons: [{ text: '知道了', cls: 'btn-primary' }] });
   App.confirm = function (title, body, okText, onOk, danger) {

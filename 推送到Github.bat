@@ -1,25 +1,31 @@
 @echo off
 rem Push ChainVault to GitHub
-rem Usage: double-click, paste your repo URL, done.
 cd /d "%~dp0"
+rem Bypass local proxy (it returns 502 for github.com)
+set "http_proxy="
+set "https_proxy="
+set "HTTP_PROXY="
+set "HTTPS_PROXY="
+
 echo ============================================
 echo  Push ChainVault to GitHub
-echo  Create the repo on github.com first (Public)
-echo  then paste its URL below.
-echo  Example: https://github.com/yourname/chainvault-dapp.git
+echo  Repo: https://github.com/Gui-su/chainvault-dapp.git
+echo  A GitHub login window will pop up on first run.
 echo ============================================
-set /p REPO=Repo URL:
-if "%REPO%"=="" (
-  echo No URL entered. Aborted.
-  pause
-  exit /b
-)
+
 git remote remove origin >nul 2>&1
-git remote add origin %REPO%
+git remote add origin https://github.com/Gui-su/chainvault-dapp.git
 git branch -M main
 git push -u origin main
-echo.
-echo Done. Next: GitHub repo -^> Settings -^> Pages
-echo   Source = Deploy from a branch, Branch = main, Folder = / (root)
-echo   Your site: https://^<username^>.github.io/^<repo^>/
+
+if errorlevel 1 (
+  echo.
+  echo Push FAILED. Check your login window / network, then run this again.
+) else (
+  echo.
+  echo Push OK! Next step:
+  echo   GitHub repo -^> Settings -^> Pages
+  echo   Source = Deploy from a branch, Branch = main, Folder = / (root) -^> Save
+  echo   Your site: https://gui-su.github.io/chainvault-dapp/
+)
 pause
